@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/player_fragment_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical">
@@ -42,7 +43,7 @@
 
                 <androidx.fragment.app.FragmentContainerView
                     android:id="@+id/player_album_cover_fragment"
-                    android:name="player.phonograph.ui.fragments.player.PlayerAlbumCoverFragment"
+                    android:name="player.phonograph.ui.modules.player.PlayerAlbumCoverFragment"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content" />
 
@@ -56,7 +57,7 @@
 
                 <androidx.appcompat.widget.Toolbar
                     android:id="@+id/player_toolbar"
-                    style="@style/Toolbar"
+                    style="@style/Widget.Phonograph.Toolbar"
                     android:background="@android:color/transparent" />
 
             </FrameLayout>
@@ -71,13 +72,14 @@
 
             <androidx.fragment.app.FragmentContainerView
                 android:id="@+id/playback_controls_fragment"
-                android:name="player.phonograph.ui.fragments.player.flat.FlatPlayerControllerFragment"
+                android:name="player.phonograph.ui.modules.player.flat.FlatPlayerControllerFragment"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
             <RelativeLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content">
+                android:layout_height="wrap_content"
+                android:background="?cardBackgroundColor">
 
                 <!--This is necessary for the drag sorting to work at the top-->
                 <View
@@ -107,7 +109,7 @@
                     <TextView
                         android:id="@+id/player_queue_sub_header"
                         android:layout_width="match_parent"
-                        android:layout_height="48dp"
+                        android:layout_height="@dimen/player_queue_sub_header_height"
                         android:gravity="center_vertical"
                         android:paddingLeft="16dp"
                         android:paddingRight="16dp"

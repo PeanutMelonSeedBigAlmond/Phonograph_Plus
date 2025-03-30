@@ -4,23 +4,34 @@
 
 package player.phonograph.ui.compose
 
-import mt.color.R
-import mt.pref.ThemeColor
-import mt.util.color.shiftColor
-import player.phonograph.App
-import player.phonograph.mechanism.setting.StyleConfig
-import player.phonograph.mechanism.setting.StyleConfig.THEME_AUTO
-import player.phonograph.mechanism.setting.StyleConfig.THEME_BLACK
-import player.phonograph.mechanism.setting.StyleConfig.THEME_DARK
-import player.phonograph.mechanism.setting.StyleConfig.THEME_LIGHT
+import player.phonograph.settings.Keys
+import player.phonograph.settings.Setting
+import player.phonograph.settings.THEME_AUTO_LIGHTBLACK
+import player.phonograph.settings.THEME_AUTO_LIGHTDARK
+import player.phonograph.settings.THEME_BLACK
+import player.phonograph.settings.THEME_DARK
+import player.phonograph.settings.THEME_LIGHT
+import player.phonograph.settings.ThemeSetting
+import player.phonograph.util.theme.accentColorFlow
+import player.phonograph.util.theme.primaryColorFlow
+import player.phonograph.util.theme.setupSystemBars
 import player.phonograph.util.theme.systemDarkmode
+import player.phonograph.util.theme.updateSystemBarsColor
+import util.theme.materials.MaterialColor
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.Colors
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Shapes
 import androidx.compose.material.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.TextStyle
@@ -28,19 +39,32 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
 import android.content.Context
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 
 @Composable
 fun PhonographTheme(content: @Composable () -> Unit) {
-
-    val previewMode = LocalInspectionMode.current
-    val colors = when (StyleConfig.generalTheme(LocalContext.current)) {
-        THEME_AUTO  -> colorAuto(previewMode, LocalContext.current)
-        THEME_DARK  -> colorsDark(previewMode)
-        THEME_BLACK -> colorsBlack(previewMode)
-        THEME_LIGHT -> colorsLight(previewMode)
-        else        -> colorAuto(previewMode, LocalContext.current)
+    val colors = phonographColors()
+    PhonographTheme(colors) {
+        content()
     }
+}
+
+@Composable
+fun PhonographTheme(highLightColorState: State<Color?>, content: @Composable () -> Unit) {
+    val highLightColor by highLightColorState
+    val color = highLightColor
+    val colors =
+        if (color != null)
+            phonographColors().copy(
+                primary = color,
+                primaryVariant = color.darker(),
+                onPrimary = textColorOn(LocalContext.current, color),
+            ) else {
+            phonographColors()
+        }
     PhonographTheme(colors) {
         content()
     }
@@ -49,14 +73,7 @@ fun PhonographTheme(content: @Composable () -> Unit) {
 
 @Composable
 fun PhonographTheme(primary: Color?, content: @Composable () -> Unit) {
-    val previewMode = LocalInspectionMode.current
-    val colors = when (StyleConfig.generalTheme(LocalContext.current)) {
-        THEME_AUTO  -> colorAuto(previewMode, LocalContext.current)
-        THEME_DARK  -> colorsDark(previewMode)
-        THEME_BLACK -> colorsBlack(previewMode)
-        THEME_LIGHT -> colorsLight(previewMode)
-        else        -> colorAuto(previewMode, LocalContext.current)
-    }.let { colors ->
+    val colors = phonographColors().let { colors ->
         if (primary != null) {
             colors.copy(
                 primary = primary,
@@ -75,34 +92,72 @@ fun PhonographTheme(primary: Color?, content: @Composable () -> Unit) {
 
 @Composable
 private fun PhonographTheme(colors: Colors, content: @Composable () -> Unit) {
-    // val previewMode = LocalInspectionMode.current
-    // val view = LocalView.current
-    // if (!previewMode) {
-    //     SideEffect {
-    //         val window = (view.context as Activity).window
-    //         window.statusBarColor = colors.primary.toArgb()
-    //         window.navigationBarColor = colors.primary.toArgb()
-    //         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-    //         WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
-    //     }
-    // }
     MaterialTheme(
         colors = colors,
         typography = Typography,
         shapes = Shapes,
         content = content
     )
+    AwareSystemUIColor(colors.primaryVariant)
+}
+@Composable
+private fun AwareSystemUIColor(color: Color) {
+    val context = LocalContext.current
+    LaunchedEffect(color) {
+        if (context is Activity) {
+            context.setupSystemBars()
+            context.updateSystemBarsColor(color.toArgb(), 64 shl 24)
+        }
+    }
 }
 
-private fun colorAuto(previewMode: Boolean, context: Context) =
-    if (systemDarkmode(context.resources)) {
-        colorsDark(previewMode)
+@Composable
+private fun phonographColors(): Colors {
+    val theme by Setting(LocalContext.current)[Keys.theme].flow.collectAsState(THEME_AUTO_LIGHTBLACK)
+    val previewMode = LocalInspectionMode.current
+    val colorPalette: ColorPalette = if (previewMode) {
+        PreviewColorPalette
     } else {
-        colorsLight(previewMode)
+        ThemeColorPalette(LocalContext.current)
+    }
+    return when (theme) {
+        THEME_AUTO_LIGHTBLACK -> colorAutoBlack(colorPalette, LocalContext.current)
+        THEME_AUTO_LIGHTDARK  -> colorAutoDark(colorPalette, LocalContext.current)
+        THEME_DARK            -> colorsDark(colorPalette)
+        THEME_BLACK           -> colorsBlack(colorPalette)
+        THEME_LIGHT           -> colorsLight(colorPalette)
+        else                  -> colorAutoDark(colorPalette, LocalContext.current)
+    }
+}
+
+
+@Composable
+private fun colorAutoDark(palette: ColorPalette, context: Context) =
+    if (systemDarkmode(context.resources)) {
+        colorsDark(palette)
+    } else {
+        colorsLight(palette)
     }
 
-fun colorsLight(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
-    Colors(
+@Composable
+private fun colorAutoBlack(palette: ColorPalette, context: Context) =
+    if (systemDarkmode(context.resources)) {
+        colorsBlack(palette)
+    } else {
+        colorsLight(palette)
+    }
+
+
+@Composable
+fun colorsLight(palette: ColorPalette): Colors {
+    val context = LocalContext.current
+    val accent by palette.accentColor(context)
+    val primary by palette.primaryColor(context)
+    val primaryDark = remember(primary) { primary.darker() }
+    val accentDark = remember(accent) { accent.darker() }
+    val onPrimary = remember(primary) { textColorOn(context, primary) }
+    val onAccent = remember(accent) { textColorOn(context, accent) }
+    return Colors(
         primary = primary,
         primaryVariant = primaryDark,
         secondary = accent,
@@ -119,8 +174,16 @@ fun colorsLight(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
     )
 }
 
-fun colorsDark(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
-    Colors(
+@Composable
+fun colorsDark(palette: ColorPalette): Colors {
+    val context = LocalContext.current
+    val accent by palette.accentColor(context)
+    val primary by palette.primaryColor(context)
+    val primaryDark = remember(primary) { primary.darker() }
+    val accentDark = remember(accent) { accent.darker() }
+    val onPrimary = remember(primary) { textColorOn(context, primary) }
+    val onAccent = remember(accent) { textColorOn(context, accent) }
+    return Colors(
         primary = primary,
         primaryVariant = primaryDark,
         secondary = accent,
@@ -137,8 +200,16 @@ fun colorsDark(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
     )
 }
 
-fun colorsBlack(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
-    Colors(
+@Composable
+fun colorsBlack(palette: ColorPalette): Colors {
+    val context = LocalContext.current
+    val accent by palette.accentColor(context)
+    val primary by palette.primaryColor(context)
+    val primaryDark = remember(primary) { primary.darker() }
+    val accentDark = remember(accent) { accent.darker() }
+    val onPrimary = remember(primary) { textColorOn(context, primary) }
+    val onAccent = remember(accent) { textColorOn(context, accent) }
+    return Colors(
         primary = primary,
         primaryVariant = primaryDark,
         secondary = accent,
@@ -155,33 +226,41 @@ fun colorsBlack(previewMode: Boolean): Colors = with(colorConfig(previewMode)) {
     )
 }
 
-class ColorConfig(
-    val primary: Color,
-    val primaryDark: Color,
-    val accent: Color,
-    val accentDark: Color = accent,
-    val onPrimary: Color = textColorOn(App.instance, primary),
-    val onAccent: Color = textColorOn(App.instance, accent),
-)
 
-fun colorConfig(previewMode: Boolean, context: Context = App.instance): ColorConfig =
-    if (previewMode) {
-        ColorConfig(
-            Color(R.color.md_blue_A400),
-            Color(R.color.md_blue_900),
-            Color(R.color.md_yellow_900),
-            Color(R.color.md_orange_900),
-        )
-    } else {
-        val primary = ThemeColor.primaryColor(context)
-        val accent = ThemeColor.accentColor(context)
-        ColorConfig(
-            Color(primary),
-            Color(shiftColor(primary, 0.8f)),
-            Color(accent),
-            Color(shiftColor(accent, 0.9f)),
-        )
-    }
+sealed interface ColorPalette {
+    @Composable
+    fun primaryColor(context: Context): State<Color>
+
+    @Composable
+    fun accentColor(context: Context): State<Color>
+}
+
+class ThemeColorPalette(context: Context) : ColorPalette {
+
+    private val primaryColorFlow: Flow<Color> = primaryColorFlow(context).map { Color(it) }
+    private val accentColorFlow: Flow<Color> = accentColorFlow(context).map { Color(it) }
+
+    @Composable
+    override fun primaryColor(context: Context): State<Color> =
+        primaryColorFlow.collectAsState(initial = Color(ThemeSetting.primaryColor(context)))
+
+    @Composable
+    override fun accentColor(context: Context): State<Color> =
+        accentColorFlow.collectAsState(initial = Color(ThemeSetting.accentColor(context)))
+}
+
+@Suppress("ConvertObjectToDataObject")
+object PreviewColorPalette : ColorPalette {
+
+    @Composable
+    override fun primaryColor(context: Context): State<Color> =
+        remember { mutableStateOf(Color(MaterialColor.Blue._A400.asColor)) }
+
+
+    @Composable
+    override fun accentColor(context: Context): State<Color> =
+        remember { mutableStateOf(Color(MaterialColor.Yellow._900.asColor)) }
+}
 
 // Set of Material typography styles to start with
 val Typography = Typography(

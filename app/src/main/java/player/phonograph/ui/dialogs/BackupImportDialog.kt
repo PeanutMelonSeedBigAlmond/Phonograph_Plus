@@ -5,14 +5,13 @@
 package player.phonograph.ui.dialogs
 
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.WhichButton
-import com.afollestad.materialdialogs.actions.getActionButton
 import com.afollestad.materialdialogs.customview.customView
 import lib.phonograph.misc.Reboot
-import mt.pref.ThemeColor
 import player.phonograph.R
 import player.phonograph.mechanism.backup.Backup
+import player.phonograph.settings.PrerequisiteSetting
 import player.phonograph.util.reportError
+import player.phonograph.util.theme.tintButtons
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.Lifecycle
@@ -58,9 +57,13 @@ class BackupImportDialog : DialogFragment() {
         val dialog = MaterialDialog(requireActivity())
             .title(text = getString(R.string.action_import, getString(R.string.action_backup)))
             .customView(view = view, dialogWrapContent = false)
+            .noAutoDismiss()
             .positiveButton(android.R.string.ok) { dialog ->
                 val selected = adapter.currentConfig
                 val host = activity.get() ?: return@positiveButton
+
+                if (selected.isEmpty()) return@positiveButton
+
                 val processDialog = ProgressDialog.newInstance(getString(R.string.action_backup))
                 dialog.dismiss()
                 processDialog.show(host.supportFragmentManager, "ProgressDialog")
@@ -78,6 +81,7 @@ class BackupImportDialog : DialogFragment() {
                     val result =
                         try {
                             Backup.Import.executeImport(host, sessionId, selected, onUpdateProgress)
+                            PrerequisiteSetting.instance(host).introShown = true // no more intro if imported
                             true
                         } catch (e: Exception) {
                             reportError(e, TAG, host.getString(R.string.failed))
@@ -95,11 +99,7 @@ class BackupImportDialog : DialogFragment() {
                 terminateBackup()
                 it.dismiss()
             }
-            .apply {
-                val color = ThemeColor.accentColor(requireActivity())
-                getActionButton(WhichButton.POSITIVE).updateTextColor(color)
-                getActionButton(WhichButton.NEGATIVE).updateTextColor(color)
-            }
+            .tintButtons()
 
         return dialog
     }
@@ -122,7 +122,7 @@ class BackupImportDialog : DialogFragment() {
             .setPositiveButton(context.getString(R.string.action_reboot)) { _, _ ->
                 Reboot.reboot(context)
             }
-            .create()
+            .create().tintButtons()
 
     private fun terminateBackup() = Backup.Import.endImportBackupFromArchive(sessionId)
 }

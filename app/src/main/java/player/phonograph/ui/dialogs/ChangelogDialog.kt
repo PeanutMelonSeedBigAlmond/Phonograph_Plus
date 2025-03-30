@@ -1,19 +1,18 @@
 package player.phonograph.ui.dialogs
 
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.WhichButton
-import com.afollestad.materialdialogs.actions.getActionButton
 import com.afollestad.materialdialogs.customview.customView
 import lib.phonograph.localization.LocalizationStore
-import mt.pref.ThemeColor
-import mt.util.color.resolveColor
 import player.phonograph.R
 import player.phonograph.settings.PrerequisiteSetting
 import player.phonograph.util.currentVersionCode
 import player.phonograph.util.reportError
 import player.phonograph.util.text.changelogCSS
 import player.phonograph.util.text.changelogHTML
+import player.phonograph.util.theme.accentColor
 import player.phonograph.util.theme.nightMode
+import player.phonograph.util.theme.themeCardBackgroundColor
+import player.phonograph.util.theme.tintButtons
 import androidx.fragment.app.DialogFragment
 import android.annotation.SuppressLint
 import android.app.Dialog
@@ -25,7 +24,7 @@ import android.view.View
 import android.webkit.WebView
 import java.io.IOException
 import java.io.InputStream
-import java.util.*
+import java.util.Locale
 
 /**
  * @author Aidan Follestad (afollestad)
@@ -44,6 +43,7 @@ class ChangelogDialog : DialogFragment() {
                     .title(android.R.string.dialog_alert_title)
                     .message(text = msg)
                     .positiveButton(android.R.string.ok)
+                    .tintButtons()
             }
 
         val dialog: MaterialDialog = MaterialDialog(requireActivity())
@@ -54,11 +54,7 @@ class ChangelogDialog : DialogFragment() {
                 val context = requireContext()
                 PrerequisiteSetting.instance(context).lastChangelogVersion = currentVersionCode(context)
             }
-            .apply {
-                getActionButton(WhichButton.POSITIVE).updateTextColor(
-                    ThemeColor.accentColor(requireActivity())
-                )
-            }
+            .tintButtons()
 
         val webView = customView.findViewById<WebView>(R.id.web_view)
 
@@ -76,10 +72,7 @@ class ChangelogDialog : DialogFragment() {
                 }
             }
 
-            val changeLog = generateChangelogHTML(
-                content,
-                ThemeColor.accentColor(requireContext())
-            )
+            val changeLog = generateChangelogHTML(content, accentColor())
 
             webView.loadData(changeLog, "text/html", "UTF-8")
         } catch (e: Throwable) {
@@ -95,11 +88,7 @@ class ChangelogDialog : DialogFragment() {
 
     private fun generateChangelogHTML(content: String, accentColor: Int): String {
         val backgroundColor =
-            resolveColor(
-                requireContext(),
-                com.afollestad.materialdialogs.R.attr.md_background_color,
-                Color.parseColor(if (requireContext().nightMode) "#424242" else "#ffffff")
-            )
+            themeCardBackgroundColor(requireContext())
 
         val textColor =
             Color.parseColor(if (requireContext().nightMode) "#ffffff" else "#000000")

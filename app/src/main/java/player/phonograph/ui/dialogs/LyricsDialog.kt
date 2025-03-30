@@ -1,34 +1,36 @@
 /*
- *  Copyright (c) 2022~2023 chr_56
+ *  Copyright (c) 2022~2025 chr_56
  */
 
 package player.phonograph.ui.dialogs
 
 import com.google.android.material.chip.Chip
-import lib.phonograph.dialog.LargeDialog
-import lib.phonograph.misc.IOpenFileStorageAccess
-import lib.phonograph.misc.OpenDocumentContract
-import mt.pref.ThemeColor
-import mt.util.color.lightenColor
-import mt.util.color.primaryTextColor
-import mt.util.color.secondaryTextColor
-import player.phonograph.App
+import lib.storage.launcher.IOpenFileStorageAccessible
+import lib.storage.launcher.OpenDocumentContract
 import player.phonograph.R
 import player.phonograph.databinding.DialogLyricsBinding
-import player.phonograph.misc.MusicProgressViewUpdateHelper
-import player.phonograph.model.lyrics.DEFAULT_TITLE
+import player.phonograph.mechanism.lyrics.ActualTextLyrics
+import player.phonograph.model.lyrics.AbsLyrics
 import player.phonograph.model.lyrics.LrcLyrics
 import player.phonograph.model.lyrics.LyricsInfo
 import player.phonograph.model.lyrics.TextLyrics
 import player.phonograph.service.MusicPlayerRemote
 import player.phonograph.settings.Keys
 import player.phonograph.settings.Setting
-import player.phonograph.ui.fragments.player.LyricsViewModel
+import player.phonograph.ui.modules.player.LyricsViewModel
+import player.phonograph.util.component.MusicProgressUpdateDelegate
 import player.phonograph.util.reportError
 import player.phonograph.util.text.lyricsTimestamp
 import player.phonograph.util.theme.getTintedDrawable
 import player.phonograph.util.theme.nightMode
+import player.phonograph.util.theme.primaryColor
+import player.phonograph.util.theme.themeFooterColor
+import player.phonograph.util.ui.applyLargeDialog
 import player.phonograph.util.warning
+import util.theme.color.lightenColor
+import util.theme.color.primaryTextColor
+import util.theme.color.secondaryTextColor
+import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelProvider
@@ -52,7 +54,6 @@ import android.widget.TextView
 import kotlin.math.abs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.regex.Pattern
@@ -62,7 +63,7 @@ import java.util.regex.Pattern
  *
  * **MUST** be created from a view-model owner possessing [LyricsViewModel]
  */
-class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
+class LyricsDialog : DialogFragment() {
 
     private var _viewBinding: DialogLyricsBinding? = null
     val binding: DialogLyricsBinding get() = _viewBinding!!
@@ -70,6 +71,10 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
     private val viewModel: LyricsViewModel by viewModels({ requireActivity() })
 
     //region Fragment LifeCycle
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        lifecycle.addObserver(progressUpdateDelegate)
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _viewBinding = DialogLyricsBinding.inflate(layoutInflater)
@@ -77,16 +82,10 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        val lyricsInfo: LyricsInfo = viewModel.lyricsInfo.value
+        binding.ok.setOnClickListener { requireDialog().dismiss() }
+        binding.viewStub.setOnClickListener { requireDialog().dismiss() }
 
-        updateChips(lyricsInfo)
-        updateTitle(lyricsInfo)
-        setupRecycleView(lyricsInfo)
         scroller = LyricsSmoothScroller(view.context)
-        progressUpdater = MusicProgressViewUpdateHelper(this@LyricsDialog, 500, 1000)
-        progressUpdater.start()
-
-        // corner
         requireDialog().window!!.setBackgroundDrawable(GradientDrawable().apply {
             this.cornerRadius = 0f
             setColor(
@@ -94,23 +93,19 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
                     .getColor(0, 0)
             )
         })
-        binding.ok.setOnClickListener { requireDialog().dismiss() }
-        binding.viewStub.setOnClickListener { requireDialog().dismiss() }
+
+        val lyricsInfo: LyricsInfo? = viewModel.lyricsInfo.value
+        if (lyricsInfo == null) {
+            dismissNow()
+            return
+        }
+
+        updateChips(lyricsInfo)
+        updateTitle(lyricsInfo)
+        setupRecycleView(lyricsInfo)
+
         setupFollowing(lyricsInfo)
-//        scrollingOffset = binding.root.height / 4
-        observe()
-    }
 
-    override fun onDestroyView() {
-        super.onDestroyView()
-        progressUpdater.destroy()
-        _viewBinding = null
-    }
-
-    //endregion
-
-
-    private fun observe() {
         lifecycleScope.launch {
             viewModel.lyricsInfo.collect { info ->
                 withContext(Dispatchers.Main) {
@@ -128,14 +123,27 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
         }
     }
 
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _viewBinding = null
+    }
+
+    override fun onStart() {
+        super.onStart()
+        applyLargeDialog()
+    }
+
+    //endregion
+
 
     //region Chip & Title
 
 
     private var chipSelected: Chip? = null
-    private fun updateChips(info: LyricsInfo) {
+    private fun updateChips(info: LyricsInfo?) {
         binding.types.removeAllViews()
         binding.types.isSingleSelection = true
+        if (info == null) return
         for ((index, lyrics) in info.withIndex()) {
             val requireCheck = info.isActive(index)
             val chip = createChip(
@@ -172,25 +180,23 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
     }
 
     private fun onChipClicked(chip: Chip, index: Int) {
-        val lyricsInfo = viewModel.lyricsInfo.value
+        val lyricsInfo = viewModel.lyricsInfo.value ?: return
         if (lyricsInfo.isActive(index)) return // do not change
-        viewModel.forceReplaceLyrics(lyricsInfo[index])
-        chip.isChecked = true
-        chip.chipBackgroundColor = correctChipBackgroundColor(true)
-        chip.setTextColor(correctChipTextColor(true))
-        chipSelected?.isChecked = false
-        chipSelected?.chipBackgroundColor = correctChipBackgroundColor(false)
-        chipSelected?.setTextColor(correctChipTextColor(false))
-        chipSelected = chip
+        lifecycleScope.launch {
+            viewModel.activateLyrics(lyricsInfo[index])
+            chip.isChecked = true
+            chip.chipBackgroundColor = correctChipBackgroundColor(true)
+            chip.setTextColor(correctChipTextColor(true))
+            chipSelected?.isChecked = false
+            chipSelected?.chipBackgroundColor = correctChipBackgroundColor(false)
+            chipSelected?.setTextColor(correctChipTextColor(false))
+            chipSelected = chip
+        }
     }
 
-    private fun updateTitle(info: LyricsInfo) {
-        val activated = info.activatedLyrics
-        binding.title.text = if (activated != null && activated.getTitle() != DEFAULT_TITLE) {
-            activated.getTitle()
-        } else {
-            info.linkedSong.title
-        }
+    private fun updateTitle(info: LyricsInfo?) {
+        val activated = info?.activatedLyrics
+        binding.title.text = if (activated != null) activated.title else AbsLyrics.DEFAULT_TITLE
     }
 
     //endregion
@@ -199,12 +205,13 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
     //region Manual Load
     private fun manualLoadLyrics() {
         val activity = requireActivity()
-        val accessor = activity as? IOpenFileStorageAccess
+        val accessor = activity as? IOpenFileStorageAccessible
         if (accessor != null) {
-            accessor.openFileStorageAccessTool.launch(OpenDocumentContract.Config(arrayOf("*/*"))) { uri ->
+            accessor.openFileStorageAccessDelegate.launch(OpenDocumentContract.Config(arrayOf("*/*"))) { uri ->
+                if (uri == null) return@launch
                 CoroutineScope(Dispatchers.IO).launch {
                     val lyricsViewModel = ViewModelProvider(activity)[LyricsViewModel::class.java]
-                    lyricsViewModel.insert(activity, uri)
+                    lyricsViewModel.appendLyricsFrom(activity, uri)
                 }
             }
         } else {
@@ -218,48 +225,52 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
     private lateinit var linearLayoutManager: LinearLayoutManager
     private fun setupRecycleView(lyricsInfo: LyricsInfo) {
         val lyrics =
-            lyricsInfo.activatedLyrics ?: lyricsInfo.getOrElse(0) { TextLyrics.from("NOT FOUND!?") }
+            lyricsInfo.activatedLyrics ?: lyricsInfo.getOrElse(0) { ActualTextLyrics.from("NOT FOUND!?") }
         linearLayoutManager = LinearLayoutManager(requireActivity(), RecyclerView.VERTICAL, false)
-        lyricsAdapter = LyricsAdapter(
-            requireContext(), lyrics.getLyricsTimeArray(), lyrics.getLyricsLineArray()
-        ) { dialog?.dismiss() }
+        lyricsAdapter = LyricsAdapter(requireContext(), lyrics) { dialog?.dismiss() }
         binding.recyclerViewLyrics.apply {
             layoutManager = this@LyricsDialog.linearLayoutManager
             adapter = this@LyricsDialog.lyricsAdapter
         }
     }
 
-    private fun updateRecycleView(info: LyricsInfo) {
-        val activated = info.activatedLyrics ?: info.first()
-        lyricsAdapter.update(activated.getLyricsTimeArray(), activated.getLyricsLineArray())
+    private fun updateRecycleView(info: LyricsInfo?) {
+        val activated = info?.activatedLyrics
+        if (activated != null) {
+            binding.recyclerViewLyrics.visibility = View.VISIBLE
+            lyricsAdapter.update(activated)
+        } else {
+            binding.recyclerViewLyrics.visibility = View.INVISIBLE
+        }
     }
     //endregion
 
 
     //region Scroll
 
-    private lateinit var progressUpdater: MusicProgressViewUpdateHelper
-
-    private fun setupFollowing(info: LyricsInfo) {
+    private fun setupFollowing(info: LyricsInfo?) {
         binding.lyricsFollowing.apply {
             buttonTintList = backgroundCsl
             setOnCheckedChangeListener { button: CompoundButton, newValue: Boolean ->
-                viewModel.requireLyricsFollowing.update {
-                    if (info.activatedLyrics is LrcLyrics) {
+                viewModel.updateRequireLyricsFollowing(
+                    if (info?.activatedLyrics is LrcLyrics) {
                         newValue
                     } else {
                         // text lyrics can not follow
                         button.isChecked = false
                         false
                     }
-                }
+                )
             }
         }
     }
 
-    override fun onUpdateProgressViews(progress: Int, total: Int) {
-        val lrcLyrics = viewModel.lyricsInfo.value.activatedLyrics as? LrcLyrics ?: return
-        val position = lrcLyrics.getPosition(progress)
+
+    private val progressUpdateDelegate = MusicProgressUpdateDelegate(::onUpdateProgress, 500, 1000)
+    private fun onUpdateProgress(progress: Int, total: Int) {
+        val lyrics = viewModel.lyricsInfo.value?.activatedLyrics
+        val lrcLyrics = lyrics as? LrcLyrics ?: return
+        val position = lrcLyrics.getLineNumber(progress)
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
             updateHighlight(position)
             if (viewModel.requireLyricsFollowing.value) {
@@ -322,19 +333,14 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
 
     //region Theme& Color
 
-    private val accentColor by lazy { ThemeColor.accentColor(App.instance) }
-    private val primaryColor by lazy { ThemeColor.primaryColor(App.instance) }
-    private val textColor by lazy { App.instance.primaryTextColor(App.instance.nightMode) }
-
-
     private fun correctChipBackgroundColor(checked: Boolean) = ColorStateList.valueOf(
-        if (checked) lightenColor(primaryColor)
-        else resources.getColor(R.color.defaultFooterColor, requireContext().theme)
+        if (checked) lightenColor(primaryColor())
+        else themeFooterColor(requireContext())
     )
 
     private fun correctChipTextColor(checked: Boolean) = ColorStateList.valueOf(
-        if (checked) requireContext().secondaryTextColor(primaryColor)
-        else textColor
+        if (checked) requireContext().secondaryTextColor(primaryColor())
+        else requireContext().primaryTextColor(primaryColor())
     )
 
     private val backgroundCsl: ColorStateList by lazy {
@@ -344,9 +350,9 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
                 intArrayOf(android.R.attr.state_checked),
                 intArrayOf(),
             ), intArrayOf(
-                lightenColor(primaryColor),
-                lightenColor(primaryColor),
-                resources.getColor(R.color.defaultFooterColor, requireContext().theme)
+                lightenColor(primaryColor()),
+                lightenColor(primaryColor()),
+                themeFooterColor(requireContext())
             )
         )
     }
@@ -355,7 +361,11 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
             arrayOf(
                 intArrayOf(android.R.attr.state_checked),
                 intArrayOf(),
-            ), intArrayOf(requireContext().primaryTextColor(primaryColor), textColor)
+            ),
+            intArrayOf(
+                requireContext().primaryTextColor(primaryColor()),
+                requireContext().primaryTextColor(requireContext().nightMode)
+            )
         )
     }
     //endregion
@@ -364,65 +374,86 @@ class LyricsDialog : LargeDialog(), MusicProgressViewUpdateHelper.Callback {
 
 private class LyricsAdapter(
     private val context: Context,
-    stamps: IntArray,
-    lines: Array<String>,
+    private var lyric: AbsLyrics,
     private val dismiss: (() -> Unit)?,
 ) : RecyclerView.Adapter<LyricsAdapter.ViewHolder>() {
 
-    private var lyrics = lines
-    private var timeStamps = stamps
+    private var lyricLines: Array<String> = lyric.lyricsLineArray
+    private var lyricTimestamps: IntArray = lyric.lyricsTimeArray
 
     @SuppressLint("NotifyDataSetChanged")
-    fun update(stamps: IntArray, lines: Array<String>) {
-        lyrics = lines
-        timeStamps = stamps
+    fun update(newLyric: AbsLyrics) {
+        lyric = newLyric
+        lyricLines = newLyric.lyricsLineArray
+        lyricTimestamps = newLyric.lyricsTimeArray
         notifyDataSetChanged()
     }
 
-    class ViewHolder private constructor(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val line: TextView = itemView.findViewById(R.id.dialog_lyrics_line)
-        val time: TextView = itemView.findViewById(R.id.dialog_lyrics_times)
+    class ViewHolder private constructor(itemView: View, val enableTimestamp: Boolean) :
+            RecyclerView.ViewHolder(itemView) {
 
-        fun bind(context: Context, lyrics: Array<String>, timeStamps: IntArray, dismiss: (() -> Unit)?) {
+        val textLine: TextView = itemView.findViewById(R.id.dialog_lyrics_line)
+        val textTime: TextView = itemView.findViewById(R.id.dialog_lyrics_times)
+
+        fun bindImpl(line: String, showTimestamp: Boolean, timestamp: Int, dismiss: (() -> Unit)?) {
+
             // parse line feed
             val actual = StringBuffer()
-            lyrics[bindingAdapterPosition].split(Pattern.compile("\\\\[nNrR]")).forEach {
+            line.split(Pattern.compile("\\\\[nNrR]")).forEach {
                 actual.append(it).appendLine()
             }
 
-            time.text = lyricsTimestamp(timeStamps[bindingAdapterPosition])
-            time.setTextColor(context.getColor(R.color.dividerColor))
-            if (timeStamps[bindingAdapterPosition] < 0 || !Setting(context)[Keys.displaySynchronizedLyricsTimeAxis].data)
-                time.visibility = View.GONE
-
-            line.text = actual.trim().toString()
-
-            line.setOnLongClickListener {
-                MusicPlayerRemote.seekTo(timeStamps[bindingAdapterPosition])
-                dismiss?.invoke()
+            // Text Line
+            textLine.text = actual.trim().toString()
+            textLine.typeface = Typeface.DEFAULT
+            textLine.setOnLongClickListener {
+                if (timestamp >= 0) {
+                    MusicPlayerRemote.seekTo(timestamp)
+                    dismiss?.invoke()
+                }
                 true
             }
-            line.typeface = Typeface.DEFAULT
-            time.typeface = Typeface.DEFAULT
+
+            // Text Timestamp
+            if (showTimestamp) {
+                textTime.text = lyricsTimestamp(timestamp)
+                textTime.typeface = Typeface.DEFAULT
+                textTime.visibility = View.VISIBLE
+            } else {
+                textTime.visibility = View.GONE
+            }
         }
 
+        fun bind(line: String, dismiss: (() -> Unit)?) =
+            bindImpl(line, false, -1, dismiss)
+
+        fun bind(line: String, timestamp: Int, dismiss: (() -> Unit)?) =
+            bindImpl(line, enableTimestamp, timestamp, dismiss)
+
         fun highlight(highlight: Boolean) {
-            line.typeface = if (highlight) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            time.typeface = if (highlight) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            textLine.typeface = if (highlight) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            textTime.typeface = if (highlight) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
         }
 
         companion object {
-            fun inflate(context: Context, parent: ViewGroup) =
-                ViewHolder(LayoutInflater.from(context).inflate(R.layout.item_lyrics, parent, false))
+            fun inflate(context: Context, parent: ViewGroup, enableTimestamp: Boolean) =
+                ViewHolder(LayoutInflater.from(context).inflate(R.layout.item_lyrics, parent, false), enableTimestamp)
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder = ViewHolder.inflate(context, parent)
+    private val enableTimestamp: Boolean = Setting(context)[Keys.displaySynchronizedLyricsTimeAxis].data
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder =
+        ViewHolder.inflate(context, parent, enableTimestamp)
 
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.bind(context, lyrics, timeStamps, dismiss)
+        if (lyric is LrcLyrics) {
+            holder.bind(lyricLines[position], lyricTimestamps[position], dismiss)
+        } else if (lyric is TextLyrics) {
+            holder.bind(lyricLines[position], dismiss)
+        }
     }
 
-    override fun getItemCount(): Int = lyrics.size
+    override fun getItemCount(): Int = lyric.length
 
 }

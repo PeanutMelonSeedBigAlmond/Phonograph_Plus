@@ -4,14 +4,14 @@
 
 package player.phonograph.ui.dialogs
 
-import mt.pref.ThemeColor
-import mt.tint.viewtint.tint
 import player.phonograph.ISSUE_TRACKER_LINK
 import player.phonograph.R
 import player.phonograph.databinding.DialogReportIssueBinding
 import player.phonograph.util.text.getDeviceInfo
 import player.phonograph.util.theme.getTintedDrawable
 import player.phonograph.util.theme.nightMode
+import player.phonograph.util.theme.primaryColor
+import util.theme.view.tint
 import androidx.fragment.app.DialogFragment
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -49,27 +49,28 @@ class ReportIssueDialog : DialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         binding.deviceInfoText.text = deviceInfo
 
-        binding.buttonSend.tint(primaryColor, true, view.context.nightMode)
+        binding.buttonSend.tint(view.context.primaryColor(), true, view.context.nightMode)
         binding.buttonSend.setImageDrawable(
             view.context.getTintedDrawable(R.drawable.ic_send_white_24dp, Color.WHITE)
         )
         binding.buttonSend.setOnClickListener {
-            requireContext().copyDeviceInfoToClipBoard()
-            startActivity(
+            it.context.copyDeviceInfoToClipBoard()
+            it.context.startActivity(
                 Intent(Intent.ACTION_VIEW).apply {
                     this.data = Uri.parse(ISSUE_TRACKER_LINK)
                     this.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
             )
         }
-    }
 
-    private val primaryColor get() = ThemeColor.primaryColor(requireContext())
+        binding.deviceInfoCard.setOnClickListener {
+            it.context.copyDeviceInfoToClipBoard()
+        }
+    }
 
     private fun Context.copyDeviceInfoToClipBoard() {
         val clipboardManager = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        clipboardManager
-            .setPrimaryClip(ClipData.newPlainText(getString(R.string.device_info), deviceInfo))
+        clipboardManager.setPrimaryClip(ClipData.newPlainText(getString(R.string.device_info), deviceInfo))
         Toast.makeText(this, R.string.copied_device_info_to_clipboard, Toast.LENGTH_LONG).show()
     }
 

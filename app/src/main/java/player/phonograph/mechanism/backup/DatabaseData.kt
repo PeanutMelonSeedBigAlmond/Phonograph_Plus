@@ -8,20 +8,20 @@ import okio.BufferedSink
 import org.koin.core.context.GlobalContext
 import player.phonograph.mechanism.event.MediaStoreTracker
 import player.phonograph.model.Song
-import player.phonograph.model.playlist.FilePlaylist
-import player.phonograph.repo.database.FavoritesStore
-import player.phonograph.repo.database.MusicPlaybackQueueStore
-import player.phonograph.repo.database.PathFilterStore
+import player.phonograph.model.playlist.Playlist
+import player.phonograph.repo.database.store.FavoritesStore
+import player.phonograph.repo.database.store.PathFilterStore
 import player.phonograph.repo.loader.Songs
-import player.phonograph.repo.mediastore.loaders.PlaylistLoader
+import player.phonograph.repo.mediastore.MediaStorePlaylists
+import player.phonograph.service.queue.MusicPlaybackQueueStore
 import player.phonograph.util.reportError
 import player.phonograph.util.warning
 import androidx.annotation.Keep
 import android.content.Context
 import kotlin.LazyThreadSafetyMode.NONE
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -46,7 +46,7 @@ object DatabaseDataManger {
         return writeJson(sink, "PathFilter", exportPathFilter(context))
     }
 
-    private fun exportPathFilter(context: Context): JsonObject? {
+    private fun exportPathFilter(@Suppress("UNUSED_PARAMETER") context: Context): JsonObject? {
         val db = pathFilterStore
         val wl = db.whitelistPaths.map { JsonPrimitive(it) }
         val bl = db.blacklistPaths.map { JsonPrimitive(it) }
@@ -70,7 +70,11 @@ object DatabaseDataManger {
         }
     }
 
-    private fun importPathFilter(context: Context, json: JsonObject, override: Boolean): Boolean {
+    private fun importPathFilter(
+        @Suppress("UNUSED_PARAMETER") context: Context,
+        json: JsonObject,
+        @Suppress("SameParameterValue") override: Boolean,
+    ): Boolean {
 
         val wl = json[WHITE_LIST] as? JsonArray
         val bl = json[BLACK_LIST] as? JsonArray
@@ -104,7 +108,7 @@ object DatabaseDataManger {
         return writeJson(sink, "PlayingQueues", exportPlayingQueues(context))
     }
 
-    private fun exportPlayingQueues(context: Context): JsonObject? {
+    private fun exportPlayingQueues(@Suppress("UNUSED_PARAMETER") context: Context): JsonObject? {
         val db = playbackQueueStore
         val oq = db.savedOriginalPlayingQueue.map(DatabaseDataManger::persistentSong)
         val pq = db.savedPlayingQueue.map(DatabaseDataManger::persistentSong)
@@ -164,8 +168,10 @@ object DatabaseDataManger {
 
     private fun exportFavorites(context: Context): JsonObject? {
         val db = favoritesStore
-        val songs = db.getAllSongs(context).map(DatabaseDataManger::persistentSong)
-        val playlists = db.getAllPlaylists(context).map(DatabaseDataManger::persistentPlaylist)
+        val songs =
+            runBlocking { db.getAllSongs(context).map(DatabaseDataManger::persistentSong) }
+        val playlists =
+            runBlocking { db.getAllPlaylists(context).map(DatabaseDataManger::persistentPlaylist) }
         return if (songs.isNotEmpty()) {
             JsonObject(
                 mapOf(
@@ -192,8 +198,8 @@ object DatabaseDataManger {
 
         val db = favoritesStore
 
-        val songs = recoverSongs(context, s)
-        val playlists = recoverPlaylists(context, p)
+        val songs = runBlocking { recoverSongs(context, s) }
+        val playlists = runBlocking { recoverPlaylists(context, p) }
 
         val r1 = if (!songs.isNullOrEmpty()) {
             if (override) db.clearAllSongs()
@@ -220,12 +226,12 @@ object DatabaseDataManger {
 
     private fun recoverSongs(context: Context, array: JsonArray?): List<Song>? =
         array?.map { parser.decodeFromJsonElement(PersistentSong.serializer(), it) }
-            ?.mapNotNull { it.getMatchingSong(context) }
+            ?.mapNotNull { runBlocking { it.getMatchingSong(context) } }
 
-    private fun persistentPlaylist(playlist: FilePlaylist): JsonElement =
+    private fun persistentPlaylist(playlist: Playlist): JsonElement =
         parser.encodeToJsonElement(PersistentPlaylist.serializer(), PersistentPlaylist.from(playlist))
 
-    private fun recoverPlaylists(context: Context, array: JsonArray?): List<FilePlaylist>? =
+    private suspend fun recoverPlaylists(context: Context, array: JsonArray?): List<Playlist>? =
         array?.map { parser.decodeFromJsonElement(PersistentPlaylist.serializer(), it) }
             ?.mapNotNull { it.getMatchingPlaylist(context) }
 
@@ -243,7 +249,7 @@ object DatabaseDataManger {
                 PersistentSong(song.data, song.title, song.albumName, song.artistName)
         }
 
-        fun getMatchingSong(context: Context): Song? =
+        suspend fun getMatchingSong(context: Context): Song? =
             Songs.searchByPath(context, path, withoutPathFilter = true).firstOrNull()
     }
     @Keep
@@ -253,12 +259,12 @@ object DatabaseDataManger {
         @SerialName("title") val name: String,
     ) {
         companion object {
-            fun from(filePlaylist: FilePlaylist): PersistentPlaylist =
-                PersistentPlaylist(filePlaylist.associatedFilePath, filePlaylist.name)
+            fun from(playlist: Playlist): PersistentPlaylist =
+                PersistentPlaylist(playlist.path() ?: "-", playlist.name)
         }
 
-        fun getMatchingPlaylist(context: Context): FilePlaylist? =
-            PlaylistLoader.searchByPath(context, path)
+        suspend fun getMatchingPlaylist(context: Context): Playlist? =
+            MediaStorePlaylists.searchByPath(context, path)
     }
 
     private fun parseJson(rawString: String, name: String, block: (JsonObject) -> Boolean): Boolean {

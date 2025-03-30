@@ -6,6 +6,9 @@ package player.phonograph.service.queue
 
 import org.koin.core.context.GlobalContext
 import player.phonograph.model.Song
+import player.phonograph.model.service.QueueObserver
+import player.phonograph.model.service.RepeatMode
+import player.phonograph.model.service.ShuffleMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -43,10 +46,10 @@ object CurrentQueueState {
         _position.update { newPosition }
     }
 
-    private val _current = MutableStateFlow(Song.EMPTY_SONG)
+    private val _current: MutableStateFlow<Song?> = MutableStateFlow(null)
     val currentSong get() = _current.asStateFlow()
 
-    private fun refreshCurrentSong(song: Song) {
+    private fun refreshCurrentSong(song: Song?) {
         _current.update { song }
     }
 

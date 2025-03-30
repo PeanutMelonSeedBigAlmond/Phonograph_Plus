@@ -42,7 +42,7 @@ fun Bitmap.cropAndScaleTo(size: Size): Bitmap {
                 setRectToRect(selected, result, ScaleToFit.CENTER)
             }
             return try {
-                Bitmap.createBitmap(targetWidth, targetHeight, config).also {
+                Bitmap.createBitmap(targetWidth, targetHeight, config ?: Bitmap.Config.ARGB_8888).also {
                     Canvas(it).drawBitmap(this, matrix, null)
                 }
             } catch (e: Exception) {
@@ -84,11 +84,3 @@ fun ByteArray.toBitmap(): Bitmap = BitmapFactory.decodeByteArray(this, 0, this.s
 fun ByteArray.toBitmap(size: Size): Bitmap = toBitmap().cropAndScaleTo(size)
 
 
-internal val folderCoverFiles = arrayOf(
-    "cover.jpg",
-    "album.jpg",
-    "folder.jpg",
-    "cover.png",
-    "album.png",
-    "folder.png"
-)

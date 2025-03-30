@@ -14,31 +14,20 @@
 
 package player.phonograph.util
 
-import player.phonograph.App
-import player.phonograph.BROADCAST_PLAYLISTS_CHANGED
 import player.phonograph.BuildConfig.DEBUG
 import player.phonograph.model.Song
-import androidx.annotation.StringRes
 import androidx.core.content.FileProvider
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.lifecycleScope
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import android.content.ContentUris
+import androidx.fragment.app.FragmentActivity
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
 import android.net.Uri
-import android.os.Build
-import android.os.Handler
-import android.os.Looper
-import android.os.Message
-import android.provider.MediaStore
-import android.widget.Toast
-import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.withContext
+import android.util.Log
 import java.io.File
+import java.io.FileNotFoundException
+import java.io.OutputStream
 
 
 //
@@ -59,71 +48,25 @@ fun Int.testBit(mask: Int): Boolean = (this and mask) != 0
 fun Int.setBit(mask: Int): Int = (this or mask)
 fun Int.unsetBit(mask: Int): Int = (this and mask.inv())
 
-//
-// LocalBoardCast
-//
-
-fun sentPlaylistChangedLocalBoardCast() =
-    LocalBroadcastManager.getInstance(App.instance).sendBroadcast(
-        Intent(BROADCAST_PLAYLISTS_CHANGED)
-    )
 
 //
-// Looper & Handler
+// Context check
 //
 
-/**
- * wrap with looper check
- */
-inline fun withLooper(crossinline block: () -> Unit) {
-    if (Looper.myLooper() == null) {
-        Looper.prepare()
-        block()
-        Looper.loop()
+inline fun activity(context: Context, block: (Activity) -> Boolean): Boolean =
+    if (context is Activity) {
+        block(context)
     } else {
-        block()
+        false
     }
-}
 
-/**
- * post a delayed message with callback which can only be called for _ONCE_ (without dither due to multiple call in a short time)
- * @param handler target handler
- * @param id `what` of the message
- * @return true if the message was successfully placed in to the message queue
- */
-fun postDelayedOnceHandlerCallback(
-    handler: Handler,
-    delay: Long,
-    id: Int = delay.toInt(),
-    callback: Runnable,
-): Boolean {
-    val message = Message.obtain(handler, callback).apply { what = id }
-    handler.removeMessages(id)
-    return handler.sendMessageDelayed(message, delay)
-}
-
-//
-// Coroutine
-//
-
-suspend fun coroutineToast(context: Context, text: String, longToast: Boolean = false) {
-    withContext(Dispatchers.Main) {
-        Toast.makeText(
-            context,
-            text,
-            if (longToast) Toast.LENGTH_LONG else Toast.LENGTH_SHORT
-        ).show()
+inline fun fragmentActivity(context: Context, block: (FragmentActivity) -> Boolean): Boolean =
+    if (context is FragmentActivity) {
+        block(context)
+    } else {
+        false
     }
-}
 
-suspend fun coroutineToast(context: Context, @StringRes res: Int) =
-    coroutineToast(context, context.getString(res))
-
-/**
- * try to get [Context]'s LifecycleScope or create a new one with [coroutineContext]
- */
-fun Context.lifecycleScopeOrNewOne(coroutineContext: CoroutineContext = SupervisorJob()) =
-    (this as? LifecycleOwner)?.lifecycleScope ?: CoroutineScope(coroutineContext)
 
 //
 // Reflection
@@ -151,19 +94,40 @@ inline fun <T> List<T>.sort(
 }
 
 //
-// Other
-//
-private val albumArtContentUri: Uri by lazy(LazyThreadSafetyMode.NONE) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q)
-        MediaStore.AUTHORITY_URI.buildUpon()
-            .appendPath(MediaStore.VOLUME_EXTERNAL)
-            .appendPath("audio")
-            .appendPath("albumart")
-            .build()
-    else Uri.parse("content://media/external/audio/albumart")
+// Metrics
+
+fun logMetrics(stage: String) {
+    Log.v(
+        "Metrics",
+        "[${System.currentTimeMillis().mod(100000)}] $stage"
+    )
 }
 
-fun mediaStoreAlbumArtUri(albumId: Long): Uri = ContentUris.withAppendedId(albumArtContentUri, albumId)
+//
+// Other
+//
+
+
+fun openOutputStreamSafe(context: Context, uri: Uri, mode: String): OutputStream? =
+    try {
+        @SuppressLint("Recycle")
+        val outputStream = context.contentResolver.openOutputStream(uri, mode)
+        if (outputStream == null) warning("UriUtil", "Failed to open ${uri.path}")
+        outputStream
+    } catch (e: FileNotFoundException) {
+        reportError(e, "UriUtil", "File Not found (${uri.path})")
+        null
+    }
+
+internal const val PLAYLIST_MIME_TYPE = "audio/x-mpegurl"
+
+fun setRingtone(context: Context, songId: Long) {
+    RingtoneManager.setActualDefaultRingtoneUri(
+        context,
+        RingtoneManager.TYPE_ALARM,
+        mediaStoreUriSong(MEDIASTORE_VOLUME_EXTERNAL, songId)
+    )
+}
 
 fun shareFileIntent(context: Context, song: Song): Intent {
     return try {
@@ -181,3 +145,6 @@ fun shareFileIntent(context: Context, song: Song): Intent {
         Intent()
     }
 }
+
+fun Song?.asList(): List<Song> = if (this != null) listOf(this) else emptyList()
+

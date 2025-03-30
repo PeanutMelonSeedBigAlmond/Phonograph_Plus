@@ -6,14 +6,16 @@ package player.phonograph.ui.dialogs
 
 import com.triggertrap.seekarc.SeekArc
 import lib.phonograph.view.CheckBoxX
-import mt.pref.ThemeColor.accentColor
 import player.phonograph.App
 import player.phonograph.R
-import player.phonograph.model.getReadableDurationString
 import player.phonograph.service.MusicPlayerRemote
 import player.phonograph.service.util.SleepTimer
 import player.phonograph.settings.Keys
 import player.phonograph.settings.Setting
+import player.phonograph.util.text.readableDuration
+import player.phonograph.util.theme.accentColor
+import player.phonograph.util.theme.tintAlertDialogButtons
+import player.phonograph.util.theme.tintButtons
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import android.app.Dialog
@@ -23,7 +25,6 @@ import android.os.CountDownTimer
 import android.os.SystemClock
 import android.widget.FrameLayout
 import android.widget.TextView
-import android.widget.Toast
 
 /**
  * @author Karim Abou Zeid (kabouzeid), chr_56<modify>
@@ -46,15 +47,11 @@ class SleepTimerDialog : DialogFragment() {
                 it.dismiss()
             }
             .setView(R.layout.dialog_sleep_timer)
-            .create().also {
+            .create().apply {
                 timerUpdater = TimerUpdater()
-                it.setOnShowListener { alterDialog ->
-                    alterDialog as AlertDialog
-                    alterDialog.getButton(DialogInterface.BUTTON_POSITIVE)?.setTextColor(accentColor)
-                    alterDialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.setTextColor(accentColor)
-
-                    val service = MusicPlayerRemote.musicService ?: return@setOnShowListener
-                    if (SleepTimer.instance(service).hasTimer()) timerUpdater.start()
+                setOnShowListener {
+                    tintAlertDialogButtons(it as AlertDialog)
+                    if (SleepTimer.instance().hasTimer()) timerUpdater.start()
                 }
             }
 
@@ -69,41 +66,31 @@ class SleepTimerDialog : DialogFragment() {
     }
 
     private fun startTimer() {
-        val minutesToQuit = progress
-        val service = MusicPlayerRemote.musicService
-        require(service != null)
-
-        SleepTimer.instance(service).setTimer(
-            minutesToQuit.toLong(),
-            Setting(service)[Keys.sleepTimerFinishMusic].data
-        ).let { success ->
-            Toast.makeText(
-                requireActivity(),
-                if (success) {
-                    getString(R.string.sleep_timer_set, minutesToQuit)
-                } else {
-                    getString(R.string.failed)
-                },
-                Toast.LENGTH_SHORT
-            ).show()
+        val service = MusicPlayerRemote.accessMusicService()
+        if (service == null) {
+            showDisconnectedDialog()
+            return
         }
+
+        val minutesToQuit = progress.toLong()
+        val shouldFinishLastSong = Setting(service)[Keys.sleepTimerFinishMusic].data
+        SleepTimer.instance().setTimer(service, minutesToQuit, shouldFinishLastSong)
     }
 
     private fun cancelTimer() {
-        val service = MusicPlayerRemote.musicService
-        require(service != null)
-
-        SleepTimer.instance(service).cancelTimer().let {
-            Toast.makeText(
-                requireActivity(),
-                if (it) {
-                    getString(R.string.sleep_timer_canceled)
-                } else {
-                    getString(R.string.failed)
-                },
-                Toast.LENGTH_SHORT
-            ).show()
+        val service = MusicPlayerRemote.accessMusicService()
+        if (service == null) {
+            showDisconnectedDialog()
+            return
         }
+
+        SleepTimer.instance().cancelTimer(service)
+    }
+
+    private fun showDisconnectedDialog() {
+        AlertDialog.Builder(requireContext())
+            .setMessage(R.string.service_disconnected)
+            .create().tintButtons()
     }
 
     private fun setupMainView(alertDialog: AlertDialog) {
@@ -113,8 +100,8 @@ class SleepTimerDialog : DialogFragment() {
         val seekArc: SeekArc = alertDialog.findViewById(R.id.seek_arc)!!
 
         // init views : set seekArc color, size and progress
-        seekArc.progressColor = accentColor
-        seekArc.setThumbColor(accentColor)
+        seekArc.progressColor = accentColor()
+        seekArc.setThumbColor(accentColor())
         seekArc.post {
             val width = seekArc.width
             val height = seekArc.height
@@ -174,13 +161,13 @@ class SleepTimerDialog : DialogFragment() {
 
         private fun setNegativeButtonText(time: Long) {
             val text = requireContext().getString(R.string.cancel_current_timer).plus(
-                MusicPlayerRemote.musicService?.let {
-                    if (time > 0 && SleepTimer.instance(it).hasTimer()) "(${getReadableDurationString(time)})" else ""
-                } ?: "(N/A)"
+                if (MusicPlayerRemote.isServiceConnected) {
+                    if (time > 0 && SleepTimer.instance().hasTimer()) "(${readableDuration(time)})" else ""
+                } else {
+                    requireContext().getString(R.string.service_disconnected)
+                }
             )
             dialog.getButton(DialogInterface.BUTTON_NEGATIVE)?.text = text
         }
     }
-
-    val accentColor get() = accentColor(requireContext())
 }

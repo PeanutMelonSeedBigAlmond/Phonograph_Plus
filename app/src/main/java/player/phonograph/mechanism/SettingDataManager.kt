@@ -4,12 +4,11 @@
 
 package player.phonograph.mechanism
 
-import mt.pref.ThemeColor
 import okio.BufferedSink
 import player.phonograph.App
 import player.phonograph.BuildConfig.VERSION_CODE
 import player.phonograph.R
-import player.phonograph.settings.dataStore
+import player.phonograph.settings.Setting
 import player.phonograph.util.file.saveToFile
 import player.phonograph.util.gitRevisionHash
 import player.phonograph.util.reportError
@@ -30,7 +29,12 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.*
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import java.io.FileInputStream
 import java.io.InputStream
 
@@ -39,7 +43,7 @@ object SettingDataManager {
     private val parser by lazy(NONE) { Json { prettyPrint = true } }
 
     suspend fun rawMainPreference(context: Context): Map<Preferences.Key<*>, Any> =
-        context.dataStore.data.first().asMap()
+        Setting.settingsDatastore(context).data.first().asMap()
 
     suspend fun exportSettings(uri: Uri, context: Context): Boolean =
         try {
@@ -120,7 +124,7 @@ object SettingDataManager {
                 reportError(e, TAG, "Failed to deserialize setting.")
                 emptyArray()
             }
-            context.dataStore.edit { preferences ->
+            Setting.settingsDatastore(context).edit { preferences ->
                 preferences.putAll(*prefArray)
             }
         }
@@ -166,10 +170,8 @@ object SettingDataManager {
         runBlocking {
             // todo forceUnregisterAllListener
             //Setting.instance.forceUnregisterAllListener()
-            App.instance.dataStore.edit { it.clear() }
+            Setting.settingsDatastore(App.instance).edit { it.clear() }
         }
-        ThemeColor.editTheme(App.instance).clearAllPreference() // lib
-
         Toast.makeText(App.instance, R.string.success, Toast.LENGTH_SHORT).show()
     }
 

@@ -8,8 +8,6 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import lib.phonograph.localization.ContextLocaleDelegate
 import lib.phonograph.misc.Reboot
-import mt.pref.ThemeColor
-import mt.pref.internal.ThemeStore
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.context.GlobalContext
@@ -17,13 +15,15 @@ import org.koin.core.context.startKoin
 import org.koin.core.logger.Level
 import player.phonograph.BuildConfig.DEBUG
 import player.phonograph.coil.createPhonographImageLoader
+import player.phonograph.model.CrashReport
 import player.phonograph.notification.ErrorNotification
-import player.phonograph.notification.ErrorNotification.KEY_STACK_TRACE
 import player.phonograph.service.queue.QueueManager
-import player.phonograph.ui.activities.CrashActivity
 import player.phonograph.ui.moduleViewModels
+import player.phonograph.ui.modules.auxiliary.CrashActivity
+import player.phonograph.util.concurrent.postDelayedOnceHandlerCallback
 import player.phonograph.util.debug
-import player.phonograph.util.postDelayedOnceHandlerCallback
+import player.phonograph.util.logMetrics
+import player.phonograph.util.theme.ThemeCacheUpdateDelegate
 import player.phonograph.util.theme.changeGlobalNightMode
 import player.phonograph.util.theme.checkNightMode
 import androidx.appcompat.app.AppCompatDelegate
@@ -70,38 +70,36 @@ class App : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         if (Reboot.isRebootingProcess(this)) return
-        debug {
-            Log.v(
-                "Metrics",
-                "${System.currentTimeMillis().mod(10000000)} App.onCreate()"
-            )
-        }
+        debug { logMetrics("App.onCreate()") }
         super.onCreate()
         instance = this
 
         // Exception Handler
         ErrorNotification.crashActivity = CrashActivity::class.java
         Thread.setDefaultUncaughtExceptionHandler { _, exception ->
-            this.startActivity(
-                Intent(this, CrashActivity::class.java)
-                    .apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        putExtra(KEY_STACK_TRACE, Log.getStackTraceString(exception))
-                    }
-            )
+            if (!CrashActivity.isCrashProcess(this)) {
+                this.startActivity(
+                    Intent(this, CrashActivity::class.java)
+                        .apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            putExtra(
+                                CrashReport.KEY, CrashReport(
+                                    type = CrashReport.CRASH_TYPE_CRASH,
+                                    note = "",
+                                    stackTrace = Log.getStackTraceString(exception),
+                                )
+                            )
+                        }
+                )
+            } else {
+                Log.e("Phonograph", "Recursively crash!", exception)
+            }
             Process.killProcess(Process.myPid())
             exitProcess(1)
         }
 
         if (CrashActivity.isCrashProcess(this)) return
 
-        // default theme
-        if (!ThemeStore.isConfigured(this, 1)) {
-            ThemeColor.editTheme(this)
-                .primaryColorRes(mt.color.R.color.md_blue_A400)
-                .accentColorRes(mt.color.R.color.md_yellow_900)
-                .commit()
-        }
         // night mode
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
 
@@ -111,6 +109,9 @@ class App : Application(), ImageLoaderFactory {
 
             modules(moduleStatus, moduleLoaders, moduleViewModels)
         }
+
+        // Color
+        ThemeCacheUpdateDelegate.start(this)
     }
 
     override fun onTerminate() {

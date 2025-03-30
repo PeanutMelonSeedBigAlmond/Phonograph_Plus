@@ -5,32 +5,29 @@
 package player.phonograph.repo.mediastore.loaders
 
 import player.phonograph.model.Album
-import player.phonograph.model.Song
-import player.phonograph.repo.mediastore.internal.catalogAlbums
 import player.phonograph.repo.mediastore.internal.createAlbum
+import player.phonograph.repo.mediastore.internal.generateAlbums
 import player.phonograph.repo.mediastore.internal.intoSongs
 import player.phonograph.repo.mediastore.internal.querySongs
 import android.content.Context
 import android.provider.MediaStore.Audio.AudioColumns
-import kotlinx.coroutines.runBlocking
 
 object AlbumLoader : Loader<Album> {
 
-    override fun all(context: Context): List<Album> {
+    override suspend fun all(context: Context): List<Album> {
         val songs = querySongs(context, sortOrder = null).intoSongs()
-        return if (songs.isEmpty()) return emptyList() else songs.toAlbumList()
+        return if (songs.isEmpty()) return emptyList() else generateAlbums(context, songs)
     }
 
-    override fun id(context: Context, id: Long): Album {
+    override suspend fun id(context: Context, id: Long): Album {
         val songs = AlbumSongLoader.id(context, id)
         return createAlbum(id, songs)
     }
 
-    fun searchByName(context: Context, query: String): List<Album> {
+    suspend fun searchByName(context: Context, query: String): List<Album> {
         val songs = querySongs(context, "${AudioColumns.ALBUM} LIKE ?", arrayOf("%$query%"), null).intoSongs()
-        return if (songs.isEmpty()) return emptyList() else songs.toAlbumList()
+        return if (songs.isEmpty()) return emptyList() else generateAlbums(context, songs)
     }
 
-    private fun List<Song>.toAlbumList(): List<Album> = runBlocking { catalogAlbums(this@toAlbumList).await() }
 }
 

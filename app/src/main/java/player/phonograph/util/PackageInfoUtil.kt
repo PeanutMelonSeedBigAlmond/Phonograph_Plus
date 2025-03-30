@@ -14,6 +14,10 @@
 
 package player.phonograph.util
 
+import player.phonograph.BuildConfig
+import player.phonograph.model.version.ReleaseChannel
+import player.phonograph.model.version.ReleaseChannel.Preview
+import player.phonograph.model.version.ReleaseChannel.Stable
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -43,13 +47,23 @@ private fun getPackageInfo(context: Context, packageName: String, flags: Int): P
 
 fun gitRevisionHash(context: Context): String {
     val packageInfo = getPackageInfo(context, context.packageName, PackageManager.GET_META_DATA) ?: return NA
-    return packageInfo.applicationInfo.metaData.getString("GitCommitHash") ?: NA
+    val applicationInfo = packageInfo.applicationInfo ?: return NA
+    return applicationInfo.metaData.getString("GitCommitHash") ?: NA
 }
 
 fun currentVersionName(context: Context): String {
     val packageInfo = getPackageInfo(context, context.packageName, 0) ?: return NA
-    return packageInfo.versionName
+    return packageInfo.versionName ?: NA
 }
+
+val currentChannel: ReleaseChannel
+    get() = when (BuildConfig.FLAVOR_channel.lowercase()) {
+        Preview.determiner -> Preview
+        Stable.determiner  -> Stable
+        else               -> Stable
+    }
+
+fun currentVariant(): String = BuildConfig.FLAVOR_target.replaceFirstChar { it.uppercase() }
 
 fun currentVersionCode(context: Context): Int {
     val packageInfo = getPackageInfo(context, context.packageName, 0) ?: return -1
@@ -60,7 +74,7 @@ fun currentVersionCode(context: Context): Int {
 fun fetchPackageSignatures(context: Context, packageName: String): Array<Signature>? {
     if (SDK_INT > P) {
         val packageInfo = getPackageInfo(context, packageName, PackageManager.GET_SIGNING_CERTIFICATES) ?: return null
-        return packageInfo.signingInfo.apkContentsSigners
+        return packageInfo.signingInfo?.apkContentsSigners
     } else {
         @Suppress("DEPRECATION")
         val packageInfo = getPackageInfo(context, packageName, PackageManager.GET_SIGNATURES) ?: return null

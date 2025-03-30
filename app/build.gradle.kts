@@ -1,16 +1,17 @@
 @file:Suppress("UnstableApiUsage")
 
-import com.android.build.api.dsl.ApplicationBaseFlavor
 import tools.release.git.getGitHash
 import tools.release.registerPublishTask
+import tools.release.text.NameSegment
 import java.util.Properties
 
 plugins {
-    alias(plugins.plugins.androidGradlePlugin)
-    alias(plugins.plugins.kotlin.android)
-    alias(plugins.plugins.kotlin.serialization)
-    alias(plugins.plugins.kotlin.parcelize)
-    id("tools.release")
+    alias(libs.plugins.androidGradlePlugin)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.parcelize)
+    alias(libs.plugins.artifactsRelease)
 }
 
 val isSigningFileExist: Boolean = rootProject.file("signing.properties").exists()
@@ -22,8 +23,8 @@ if (isSigningFileExist) {
 }
 
 android {
-    compileSdk = 34
-    buildToolsVersion = "34.0.0"
+    compileSdk = 35
+    buildToolsVersion = "35.0.0"
     namespace = "player.phonograph"
 
     val appName = "Phonograph Plus"
@@ -36,17 +37,12 @@ android {
 
     defaultConfig {
         minSdk = 24
-        targetSdk = 34
-
-        renderscriptTargetApi = 29
-        vectorDrawables.useSupportLibrary = true
+        targetSdk = 35
 
         applicationId = "player.phonograph.plus"
-        versionCode = 1042
-        versionName = "1.4.2"
+        versionCode = 1094
+        versionName = "1.10.0-dev1"
 
-
-        setProperty("archivesBaseName", "PhonographPlus_$versionName")
 
         proguardFiles(File("proguard-rules-base.pro"), File("proguard-rules-app.pro"))
 
@@ -74,8 +70,9 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
 
-            // git tracker
-            manifestPlaceholders["GIT_COMMIT_HASH"] = getGitHash(false)
+            // git revision tracker
+            manifestPlaceholders["GIT_COMMIT_HASH"] = getGitHash(false) ?: "n/a"
+            vcsInfo.include = false // we have our means
         }
         getByName("debug") {
             // signing as well
@@ -86,47 +83,73 @@ android {
         }
     }
 
-    flavorDimensions += listOf("purpose")
+    flavorDimensions += listOf("target", "channel")
     productFlavors {
         // Stable or LTS release
         create("stable") {
-            dimension = "purpose"
+            dimension = "channel"
 
             resValue("string", "app_name", appName)
         }
         // Preview release
         create("preview") {
-            dimension = "purpose"
+            dimension = "channel"
             matchingFallbacks.add("stable")
 
             resValue("string", "app_name", "$appName Preview")
             applicationIdSuffix = ".preview"
+
+            isDefault = true
         }
         // for checkout to locate a bug and ci etc.
         create("checkout") {
-            dimension = "purpose"
+            dimension = "channel"
             matchingFallbacks.add("stable")
 
             resValue("string", "app_name", "$appName Checkout")
             applicationIdSuffix = ".checkout"
 
 
-            manifestPlaceholders["GIT_COMMIT_HASH"] = getGitHash(false)
+            manifestPlaceholders["GIT_COMMIT_HASH"] = getGitHash(false) ?: "n/a"
         }
+
+        create("modern") {
+            dimension = "target"
+
+            isDefault = true
+        }
+        create("legacy") {
+            dimension = "target"
+            matchingFallbacks.add("modern")
+
+            targetSdk = 28
+        }
+
     }
     androidComponents {
+
+        val moduleName = project.name
+        onVariants(selector().all()) { variant ->
+            // Rename
+            for (output in variant.outputs) {
+                val outputImpl = output as? com.android.build.api.variant.impl.VariantOutputImpl ?: continue
+                val origin = outputImpl.outputFileName.get()
+                val new = origin.replace(moduleName, "PhonographPlus-${output.versionName.get()}")
+                outputImpl.outputFileName.set(new)
+            }
+        }
+
         beforeVariants(selector().withBuildType("release")) { variantBuilder ->
             val favors = variantBuilder.productFlavors
             // no "release" type
-            if (favors.contains("purpose" to "checkout")) {
+            if (favors.contains("channel" to "checkout")) {
                 variantBuilder.enable = false
             }
         }
 
         val name = appName.replace(Regex("\\s"), "") //remove white space
         onVariants(selector().withBuildType("release")) { variant ->
-            val version = (android.defaultConfig as ApplicationBaseFlavor).versionName ?: "N/A"
-            tasks.registerPublishTask(name, version, variant)
+            tasks.registerPublishTask(name, variant)
         }
     }
 
@@ -143,18 +166,19 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
-    }
-
     kotlinOptions {
         jvmTarget = "17"
-        freeCompilerArgs = listOf(
-            "-P",
-            "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
-        )
     }
 
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
+}
+
+androidPublish {
+    nameStyle = listOf(NameSegment.VersionName, NameSegment.Favor)
 }
 
 /**
@@ -172,6 +196,7 @@ dependencies {
     implementation(libs.androidx.preference)
 
     implementation(libs.androidx.recyclerview)
+    implementation(libs.androidx.viewpager2)
 
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.percentlayout)
@@ -187,8 +212,10 @@ dependencies {
     implementation(libs.bundles.compose)
     debugImplementation(libs.compose.ui.tooling)
 
-    implementation(libs.bundles.materialTools)
+    implementation(libs.bundles.themeUtil)
 
+    implementation(libs.storageUtilities)
+    implementation(libs.musicMetadataSource)
     implementation(libs.menuDsl)
     implementation(libs.seekArc)
     implementation(libs.slidingUpPanel)
@@ -212,9 +239,7 @@ dependencies {
     implementation(libs.advrecyclerview)
     implementation(libs.recyclerviewFastscroll)
     implementation(libs.composeReorderable)
-    implementation(libs.bundles.composeSettings) {
-        val uiTooling = libs.compose.ui.tooling.get().module
-        exclude(group = uiTooling.group, module = uiTooling.name)
-    }
     implementation(libs.statusBarLyricsApi)
+    implementation(libs.lyricsGetterAPi)
+
 }

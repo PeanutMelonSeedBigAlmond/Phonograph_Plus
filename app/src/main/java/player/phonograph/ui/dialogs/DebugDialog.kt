@@ -5,12 +5,16 @@
 package player.phonograph.ui.dialogs
 
 import player.phonograph.App
-import player.phonograph.BuildConfig
 import player.phonograph.mechanism.Update
+import player.phonograph.model.Song
 import player.phonograph.model.version.VersionCatalog
 import player.phonograph.notification.ErrorNotification
 import player.phonograph.notification.UpgradeNotification
-import player.phonograph.util.coroutineToast
+import player.phonograph.repo.mediastore.checkEmbeddedIdOverflow
+import player.phonograph.repo.mediastore.checkIdConflict
+import player.phonograph.util.concurrent.coroutineToast
+import player.phonograph.util.currentChannel
+import player.phonograph.util.theme.tintButtons
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.FragmentActivity
@@ -23,6 +27,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 
 class DebugDialog : DialogFragment() {
@@ -40,11 +45,23 @@ class DebugDialog : DialogFragment() {
         "Send Crash Notification" to {
             ErrorNotification.postErrorNotification(Exception("Test"), "Crash Notification Test!!")
         },
-        "Check Upgrade (Dialog)" to {
+        "Check Overflowed Song Ids" to {
+            CoroutineScope(Dispatchers.IO).launch {
+                val errors = checkEmbeddedIdOverflow(App.instance)
+                dumpSong("Overflowed Ids", errors)
+            }
+        },
+        "Check Conflicted Song Ids" to {
+            CoroutineScope(Dispatchers.IO).launch {
+                val errors = checkIdConflict(App.instance)
+                dumpSong("Conflicted Position Embedded Ids", errors)
+            }
+        },
+        "Check for updates (Dialog)" to {
             CoroutineScope(Dispatchers.Unconfined).launch {
                 Update.checkUpdate(true) { versionCatalog: VersionCatalog, upgradable: Boolean ->
                     try {
-                        UpgradeDialog.create(versionCatalog)
+                        UpgradeInfoDialog.create(versionCatalog)
                             .show(hostActivity.get()?.supportFragmentManager!!, "DebugDialog")
                         if (!upgradable) {
                             coroutineToast(App.instance, "not upgradable")
@@ -55,14 +72,10 @@ class DebugDialog : DialogFragment() {
                 }
             }
         },
-        "Check Upgrade (Notification)" to {
+        "Check for updates (Notification)" to {
             CoroutineScope(Dispatchers.Unconfined).launch {
                 Update.checkUpdate(true) { versionCatalog: VersionCatalog, upgradable: Boolean ->
-                    val channel = when (BuildConfig.FLAVOR) {
-                        "preview" -> "preview"
-                        else      -> "stable"
-                    }
-                    UpgradeNotification.sendUpgradeNotification(versionCatalog, channel)
+                    UpgradeNotification.sendUpgradeNotification(versionCatalog, currentChannel)
                     if (!upgradable) {
                         coroutineToast(App.instance, "not upgradable")
                     }
@@ -70,6 +83,16 @@ class DebugDialog : DialogFragment() {
             }
         },
     )
+
+    private suspend fun dumpSong(title: String, errors: Collection<Song>) {
+        val message = errors.fold("$title\n:") { acc, song -> "$acc\n${song.id}: ${song.title}" }
+        withContext(Dispatchers.Main) {
+            AlertDialog.Builder(hostActivity.get()!!)
+                .setTitle(title)
+                .setMessage(message)
+                .show()
+        }
+    }
 
 
     private lateinit var hostActivity: WeakReference<FragmentActivity>
@@ -81,7 +104,7 @@ class DebugDialog : DialogFragment() {
                 dialog.dismiss()
                 callbacks[index].invoke(dialog)
             }
-            .create()
+            .create().tintButtons()
     }
 
     override fun onStart() {

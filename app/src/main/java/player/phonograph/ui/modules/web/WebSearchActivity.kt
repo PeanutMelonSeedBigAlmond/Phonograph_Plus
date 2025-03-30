@@ -4,7 +4,7 @@
 
 package player.phonograph.ui.modules.web
 
-import player.phonograph.ui.compose.ComposeThemeActivity
+import player.phonograph.ui.basis.ComposeActivity
 import player.phonograph.ui.compose.PhonographTheme
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
@@ -14,7 +14,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import android.os.Bundle
 
-class WebSearchActivity : ComposeThemeActivity() {
+class WebSearchActivity : ComposeActivity() {
 
     val viewModel: WebSearchViewModel by viewModels()
 
@@ -26,9 +26,7 @@ class WebSearchActivity : ComposeThemeActivity() {
         viewModel.selectorMode = intent.getBooleanExtra(EXTRA_SELECTOR_MODE, false)
 
         setContent {
-
-            val highlightColor by primaryColor.collectAsState()
-            PhonographTheme(highlightColor) {
+            PhonographTheme {
                 val scaffoldState = rememberScaffoldState()
                 val page by viewModel.navigator.currentPage.collectAsState()
                 WebSearch(viewModel, scaffoldState, page)

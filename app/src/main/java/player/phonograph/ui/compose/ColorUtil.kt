@@ -4,7 +4,7 @@
 
 package player.phonograph.ui.compose
 
-import mt.util.color.primaryTextColor
+import util.theme.color.primaryTextColor
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
@@ -16,7 +16,7 @@ import kotlin.math.roundToInt
 
 private fun Color.hsvShift(by: Float): Color {
     val hsv = floatArrayOf(0f, 0f, 0f)
-    RGBToHSV(red.roundToInt(), green.roundToInt(), blue.roundToInt(), hsv)
+    RGBToHSV((red * 255).toInt(), (green * 255).toInt(), (blue * 255).toInt(), hsv)
     return Color.hsv(hsv[0], hsv[1], hsv[2] * by)
 }
 

@@ -6,21 +6,33 @@ package player.phonograph.ui.modules.search
 
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import lib.activityresultcontract.registerActivityResultLauncherDelegate
 import lib.phonograph.misc.menuProvider
-import mt.tint.setActivityToolbarColor
-import mt.tint.viewtint.setSearchViewContentColor
-import mt.tint.viewtint.tintCollapseIcon
-import mt.util.color.primaryTextColor
+import lib.storage.launcher.CreateFileStorageAccessDelegate
+import lib.storage.launcher.ICreateFileStorageAccessible
+import lib.storage.launcher.IOpenDirStorageAccessible
+import lib.storage.launcher.IOpenFileStorageAccessible
+import lib.storage.launcher.OpenDirStorageAccessDelegate
+import lib.storage.launcher.OpenFileStorageAccessDelegate
 import player.phonograph.R
 import player.phonograph.databinding.ActivitySearchBinding
 import player.phonograph.databinding.PopupWindowSearchBinding
 import player.phonograph.mechanism.event.MediaStoreTracker
 import player.phonograph.settings.Keys
 import player.phonograph.settings.Setting
-import player.phonograph.ui.activities.base.AbsMusicServiceActivity
-import player.phonograph.ui.components.popup.OptionsPopup
+import player.phonograph.ui.modules.panel.AbsSlidingMusicPanelActivity
+import player.phonograph.ui.modules.popup.OptionsPopup
+import player.phonograph.util.theme.accentColor
 import player.phonograph.util.theme.getTintedDrawable
+import player.phonograph.util.theme.primaryColor
+import player.phonograph.util.theme.updateSystemBarsColor
 import player.phonograph.util.ui.hideKeyboard
+import util.theme.color.darkenColor
+import util.theme.color.primaryTextColor
+import util.theme.color.secondaryTextColor
+import util.theme.view.searchview.setSearchViewContentColor
+import util.theme.view.toolbar.setToolbarColor
+import util.theme.view.toolbar.tintCollapseIcon
 import androidx.activity.viewModels
 import androidx.appcompat.widget.SearchView
 import androidx.lifecycle.Lifecycle
@@ -28,19 +40,25 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.viewpager2.widget.ViewPager2
 import android.content.Context
+import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import kotlinx.coroutines.launch
 
-class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener {
+class SearchActivity : AbsSlidingMusicPanelActivity(), SearchView.OnQueryTextListener,
+                       ICreateFileStorageAccessible, IOpenFileStorageAccessible, IOpenDirStorageAccessible {
 
     private var viewBinding: ActivitySearchBinding? = null
     val binding get() = viewBinding!!
 
     private val viewModel: SearchActivityViewModel by viewModels()
 
+    override val createFileStorageAccessDelegate: CreateFileStorageAccessDelegate = CreateFileStorageAccessDelegate()
+    override val openFileStorageAccessDelegate: OpenFileStorageAccessDelegate = OpenFileStorageAccessDelegate()
+    override val openDirStorageAccessDelegate: OpenDirStorageAccessDelegate = OpenDirStorageAccessDelegate()
 
     private lateinit var searchResultPageAdapter: SearchResultPageAdapter
     private lateinit var mediator: TabLayoutMediator
@@ -49,12 +67,19 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
 
     override fun onCreate(savedInstanceState: Bundle?) {
         viewBinding = ActivitySearchBinding.inflate(layoutInflater)
-        super.onCreate(savedInstanceState)
 
-        setContentView(binding.root)
+        registerActivityResultLauncherDelegate(
+            createFileStorageAccessDelegate,
+            openFileStorageAccessDelegate,
+            openDirStorageAccessDelegate,
+        )
+
+        super.onCreate(savedInstanceState)
 
         setUpToolBar()
         setUpPager()
+
+        updateSystemBarsColor(darkenColor(primaryColor()), Color.TRANSPARENT)
 
         lifecycleScope.launch {
             lifecycle.repeatOnLifecycle(Lifecycle.State.CREATED) {
@@ -75,7 +100,11 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
         lifecycle.addObserver(MediaStoreListener())
     }
 
+    override fun createContentView(): View = wrapSlidingMusicPanel(binding.root)
+
     private fun setUpPager() {
+        val primaryColor = primaryColor()
+        val accentColor = accentColor()
         searchResultPageAdapter = SearchResultPageAdapter(this)
         with(binding) {
             with(pager) {
@@ -88,6 +117,8 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
             }
             with(tabs) {
                 tabMode = TabLayout.MODE_SCROLLABLE
+                setTabTextColors(secondaryTextColor(primaryColor), primaryTextColor(primaryColor))
+                setSelectedTabIndicatorColor(accentColor)
             }
             with(actionBarContainer) {
                 setBackgroundColor(primaryColor)
@@ -98,7 +129,7 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
         }
         mediator.attach()
         with(binding.config) {
-            setImageDrawable(getTintedDrawable(R.drawable.ic_settings_white_24dp, textColorPrimary))
+            setImageDrawable(getTintedDrawable(R.drawable.ic_settings_white_24dp, primaryTextColor(primaryColor)))
             setBackgroundDrawable(null)
             setOnClickListener {
                 if (popup == null) {
@@ -114,7 +145,7 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
         setSupportActionBar(binding.toolbar)
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
         addMenuProvider(menuProvider(this::setupMenu))
-        setActivityToolbarColor(binding.toolbar, primaryColor)
+        setToolbarColor(binding.toolbar, primaryColor())
     }
 
     private fun setupMenu(menu: Menu) {
@@ -140,7 +171,7 @@ class SearchActivity : AbsMusicServiceActivity(), SearchView.OnQueryTextListener
 
         searchView!!.post { searchView!!.setOnQueryTextListener(this) }
 
-        val textColor = primaryTextColor(primaryColor)
+        val textColor = primaryTextColor(primaryColor())
         binding.toolbar.tintCollapseIcon(textColor)
         setSearchViewContentColor(searchView, textColor)
     }

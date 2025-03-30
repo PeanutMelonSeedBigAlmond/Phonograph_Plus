@@ -14,36 +14,74 @@
 ![DownloadsStatistics](https://img.shields.io/github/downloads/chr56/Phonograph_Plus/total)
 
 
-**An independent fork of Phonograph under maintenance and development**
+**A revived classic material designed music player for Android**
 
-Phonograph is a material designed local music player for Android. And Phonograph Plus is an _independent_ fork
-of [Phonograph](https://github.com/kabouzeid/Phonograph), and is currently under my maintenance and ~~development~~.
-
-
-**🛠️ NOTICE: Development has been temporarily suspended, the project is currently in maintenance mode.**
-
-Development would be suspended for about one month or two, the project is maintaining only.
-No new features would be implemented during the maintenance period; only crucial and fatal bugs would be fixed if possible.
+Phonograph is a light-weighted material designed local music player for Android. And Phonograph Plus currently is an _independent_ fork of [Phonograph](https://github.com/kabouzeid/Phonograph) since it is no longer maintained (which has been no longer active after 2020 and has been archived in 2023), and has been in maintenance and development since 2021.
 
 ## **Downloads**
 
-[<img src="https://img.shields.io/github/v/release/chr56/phonograph_plus?label=Github%20Release" alt="Github%20Release">](https://github.com/chr56/Phonograph_Plus/releases/latest)
-[<img src="https://img.shields.io/github/v/release/chr56/phonograph_plus?label=Github%20Release%20(Latest)&include_prereleases" alt="Github%20Release%20(Latest)">](https://github.com/chr56/Phonograph_Plus/releases/)
+[<img src="https://img.shields.io/github/v/release/chr56/phonograph_plus?label=Github%20Releases" alt="Github%20Release">](https://github.com/chr56/Phonograph_Plus/releases/latest)
+[<img src="https://img.shields.io/github/v/release/chr56/phonograph_plus?label=Github%20Releases%20(Latest)&include_prereleases" alt="Github%20Release%20(Latest)">](https://github.com/chr56/Phonograph_Plus/releases/)
 [<img src="https://img.shields.io/f-droid/v/player.phonograph.plus?label=F-droid" alt="F-droid">](https://f-droid.org/packages/player.phonograph.plus/)
+
+Phonograph Plus is available on GitHub Releases (Stable Channel and Preview Channel[^1]) and F-Droid[^2] (Stable Channel).
+
+[^1]: Package name of Preview version has suffix of `preview`. 
+
+[^2]: Reproducible Builds are enabled on F-droid, Apks from F-droid shall be exactly equivalent to ones from GitHub Releases, byte by byte.
+
 
 ## **Additional Features**
 
-All listed features are compared with the original Phonograph.
+Here is a list of _notable_ changes or enhancements compared with the original Phonograph.
 
-- Unlock pro.
+### User Interface
 
-- Automatic & adaptive dark mode.
+- Automatic dark mode based on system datk mode.
 
-- Plenty of user interface changes.
+- Unlock pro, supporting all themes.
+
+- <del>Poor</del> support of Monet.
+
+- Brand-new File tab with new design.
+
+- Brand-new App Intro with new design.
+
+- Improve "Library" pages user experience.
+
+... and more user interface changes.
+
+### Improvements
 
 - Change language in application manually.
 
+- Show Time Axis in "Lyrics" Dialog and allow seeking basing lyric's time axis and support lyrics following.
+
+- Support more sort orders.
+
+- Path filter, support "exclude mode" (blacklist) and "include mode" (whitelist).
+
+- Add song menu shortcuts to add new items to excluded-list (blacklist).
+
 - Better Notification Image Quality for Android T and above.
+
+- Improved experience of storage management for Android 11 and above.
+
+- Allow deleting songs file along with its external lyrics file.
+
+- Increase history played tracks and top played tracks entries capacity (100->150).
+
+- Enhance multi-selecting.
+
+- Better Playlist support.
+
+- Improve menu experience, collapse less frequently used options.
+
+- Allow tabs fixed.
+
+### Enhancements
+
+- Playback speed control.
 
 - User-defined click behavior for songs.
 
@@ -53,52 +91,22 @@ All listed features are compared with the original Phonograph.
 
 - Brand-new Tag Editor supporting more tags.
 
-- Show Time Axis in "Lyrics" Dialog and allow seeking basing lyric's time axis and support lyrics following.
-
-- Playback speed control.
-
-- Basic support for Android Auto.
-
-- Support more sort orders.
-
-- Partially Fix Android 11 Scope Storage.
+- Support for Android Auto.
 
 - Resume playing after interruptions.
 
-- Improve "Library" pages user experience.
-
 - Allow collecting app crash report.
-
-- Path filter, support "exclude mode" (blacklist) and "include mode" (whitelist).
-
-- Add song menu shortcuts to add new items to excluded-list (blacklist).
 
 - Co-work-with/Support [StatusBar Lyric Xposed Module (api)](https://github.com/Block-Network/StatusBarLyric).
 
-- Allow deleting songs file along with its external lyrics file.
+- Export internal databases and settings for backups.
 
-- Brand-new File tab.
+...
 
-- Brand-new App Intro.
-
-- Enhance multi-selecting.
-
-- Increase history played tracks and top played tracks entries capacity (100->150).
-
-- Export internal databases and settings for the need of backup.
-
-- Allow tabs fixed.
-
-- Better Playlist support.
-
-- <del>Poor</del> support of Monet.
-
-- Improve menu experience.
-
-- and more small features/fixes.
+and more small features/fixes.
 
 It is suggested to browser the [Changelog](https://phonographplus.github.io/changelogs/changeslogs/changelog.html) to
-view all features completely
+view all changes, improvements and new features completely.
 
 ## **Translation**
 
@@ -122,8 +130,10 @@ See [Developer Guide](docs/Developer_Guide.md)
 
 See [Road Map](docs/Road_Map.md)
 
-## **Repository Mirror**
+## **Repository Mirrors**
 
 [![GitHub](https://img.shields.io/badge/Git-Github-Blue)](https://github.com/chr56/Phonograph_Plus/)
 [![Codeberg](https://img.shields.io/badge/Git-Codeberg-Blue)](https://codeberg.org/PhonographPlus/Phonograph_Plus)
 [![BitBucket](https://img.shields.io/badge/Git-BitBucket-Blue)](https://bitbucket.org/phonograph-plus/phonograph_plus/)
+
+**Only** these three sites above are considered as official Git Repositories (mirroring each other), all the other are non-official.

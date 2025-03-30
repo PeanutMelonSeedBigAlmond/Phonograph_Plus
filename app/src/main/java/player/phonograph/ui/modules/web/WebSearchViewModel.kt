@@ -4,16 +4,18 @@
 
 package player.phonograph.ui.modules.web
 
+import mms.AbsClientDelegate.ExceptionHandler
+import mms.lastfm.LastFmAlbum
+import mms.lastfm.LastFmArtist
+import mms.lastfm.LastFmClientDelegate
+import mms.lastfm.LastFmTrack
+import mms.musicbrainz.MusicBrainzArtist
+import mms.musicbrainz.MusicBrainzClientDelegate
+import mms.musicbrainz.MusicBrainzRecording
+import mms.musicbrainz.MusicBrainzRelease
+import mms.musicbrainz.MusicBrainzReleaseGroup
+import player.phonograph.USER_AGENT
 import player.phonograph.ui.compose.Navigator
-import util.phonograph.tagsources.lastfm.LastFmAlbum
-import util.phonograph.tagsources.lastfm.LastFmArtist
-import util.phonograph.tagsources.lastfm.LastFmClientDelegate
-import util.phonograph.tagsources.lastfm.LastFmTrack
-import util.phonograph.tagsources.musicbrainz.MusicBrainzArtist
-import util.phonograph.tagsources.musicbrainz.MusicBrainzClientDelegate
-import util.phonograph.tagsources.musicbrainz.MusicBrainzRecording
-import util.phonograph.tagsources.musicbrainz.MusicBrainzRelease
-import util.phonograph.tagsources.musicbrainz.MusicBrainzReleaseGroup
 import androidx.appcompat.app.AppCompatActivity.RESULT_CANCELED
 import androidx.appcompat.app.AppCompatActivity.RESULT_OK
 import androidx.lifecycle.ViewModel
@@ -27,12 +29,23 @@ class WebSearchViewModel : ViewModel() {
 
     val navigator = Navigator<Page>(PageHome)
 
+    private val errorReporter = object : ExceptionHandler {
+        override fun reportError(e: Throwable, tag: String, message: String) =
+            player.phonograph.util.reportError(e, tag, message)
+
+        override fun warning(tag: String, message: String) =
+            player.phonograph.util.warning(tag, message)
+
+    }
+
     private var clientDelegateLastFm: LastFmClientDelegate? = null
     fun clientDelegateLastFm(context: Context): LastFmClientDelegate {
         return if (clientDelegateLastFm != null) {
             clientDelegateLastFm!!
         } else {
-            LastFmClientDelegate(context, viewModelScope).also { clientDelegateLastFm = it }
+            val delegate = LastFmClientDelegate(context, USER_AGENT, errorReporter, viewModelScope)
+            clientDelegateLastFm = delegate
+            delegate
         }
     }
 
@@ -41,7 +54,9 @@ class WebSearchViewModel : ViewModel() {
         return if (clientDelegateMusicBrainz != null) {
             clientDelegateMusicBrainz!!
         } else {
-            MusicBrainzClientDelegate(context, viewModelScope).also { clientDelegateMusicBrainz = it }
+            val delegate = MusicBrainzClientDelegate(context, USER_AGENT, errorReporter, viewModelScope)
+            clientDelegateMusicBrainz = delegate
+            delegate
         }
     }
 

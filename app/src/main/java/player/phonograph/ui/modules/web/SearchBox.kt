@@ -54,7 +54,7 @@ fun BaseSearchBox(
             fontWeight = FontWeight.Black,
             style = MaterialTheme.typography.h5
         )
-        HorizontalTextItem(name = stringResource(R.string.target)) {
+        HorizontalTextItem(label = stringResource(R.string.target)) {
             target()
         }
         fields()
@@ -72,6 +72,7 @@ fun BaseSearchBox(
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 fun SearchTextBox(current: String, modifier: Modifier = Modifier, hint: String? = null, onUpdate: (String) -> Unit) {
     TextField(
         value = current,

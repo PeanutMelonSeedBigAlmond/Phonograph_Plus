@@ -4,25 +4,22 @@
 
 package player.phonograph.repo.mediastore.internal
 
+import player.phonograph.mechanism.explorer.Locations
 import player.phonograph.model.Song
 import player.phonograph.model.file.FileEntity
 import player.phonograph.model.file.Location
 import android.annotation.SuppressLint
 import android.database.Cursor
+import android.os.storage.StorageManager
 
 
 /**
  * consume cursor (read & close) and convert into a song that at top of cursor
  */
-fun Cursor?.intoFirstSong(): Song {
-    return this?.use {
-        if (moveToFirst()) {
-            readSong(this)
-        } else {
-            Song.EMPTY_SONG
-        }
-    } ?: Song.EMPTY_SONG
-}
+fun Cursor?.intoFirstSong(): Song? =
+    this?.use {
+        if (moveToFirst()) readSong(this) else null
+    }
 
 /**
  * consume cursor (read & close) and convert into song list
@@ -84,7 +81,11 @@ fun readSong(cursor: Cursor): Song {
  * @see [BASE_FILE_PROJECTION]
  */
 @SuppressLint("Range")
-fun readFileEntity(cursor: Cursor, currentLocation: Location): FileEntity {
+fun readFileEntity(
+    cursor: Cursor,
+    currentLocation: Location,
+    storageManager: StorageManager,
+): FileEntity {
     val id = cursor.getLong(0)
     val displayName = cursor.getString(1)
     val absolutePath = cursor.getString(2)
@@ -92,14 +93,14 @@ fun readFileEntity(cursor: Cursor, currentLocation: Location): FileEntity {
     val dateAdded = cursor.getLong(4)
     val dateModified = cursor.getLong(5)
 
-    val songRelativePath = absolutePath.stripToRelativePath(currentLocation.absolutePath)
-    val basePath = currentLocation.basePath.let { if (it == "/") "" else it } // root
+    val relativePath = absolutePath.stripToRelativePath(currentLocation.absolutePath)
 
-    return if (songRelativePath.contains('/')) {
-        val folderName = songRelativePath.substringBefore('/')
+    return if (relativePath.contains('/')) {
+        val folderName = relativePath.substringBefore('/')
+        val folderPath = absolutePath.substringBefore(relativePath.substringAfter('/'))
         // folder
         FileEntity.Folder(
-            location = currentLocation.changeTo("$basePath/$folderName"),
+            location = Locations.from(folderPath, storageManager),
             name = folderName,
             dateAdded = dateAdded,
             dateModified = dateModified
@@ -107,7 +108,7 @@ fun readFileEntity(cursor: Cursor, currentLocation: Location): FileEntity {
     } else {
         // file
         FileEntity.File(
-            location = currentLocation.changeTo("$basePath/$songRelativePath"),
+            location = Locations.from(absolutePath, storageManager),
             name = displayName,
             id = id,
             size = size,

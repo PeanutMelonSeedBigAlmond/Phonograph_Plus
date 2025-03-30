@@ -4,70 +4,23 @@
 
 package player.phonograph.coil
 
+import coil.Coil
+import coil.request.Disposable
+import coil.request.ImageRequest
+import coil.request.ImageResult
+import coil.request.Parameters
+import coil.size.Dimension
+import coil.size.Size
+import coil.size.SizeResolver
+import coil.target.Target
+import androidx.annotation.DrawableRes
 import android.content.Context
 import android.graphics.drawable.Drawable
 import android.widget.ImageView
-import androidx.annotation.DrawableRes
-import coil.Coil
-import coil.request.ImageRequest
-import coil.size.Dimension
-import coil.size.Size
-import coil.target.Target
-import player.phonograph.R
-import player.phonograph.coil.target.PaletteBitmap
-import player.phonograph.coil.target.PaletteTargetBuilder
-import player.phonograph.model.Song
-import androidx.appcompat.content.res.AppCompatResources
-import androidx.core.graphics.drawable.toBitmap
-import android.graphics.drawable.BitmapDrawable
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withTimeout
 
-@OptIn(ExperimentalCoroutinesApi::class)
-suspend fun loadImage(context: Context, song: Song): PaletteBitmap = try {
-    withTimeout(2000) {
-        suspendCancellableCoroutine { continuation ->
-            loadImage(context, song) { _, drawable, color ->
-                require(drawable is BitmapDrawable)
-                continuation.resume(PaletteBitmap(drawable.bitmap, color)) { cancel() }
-            }
-        }
-    }
-} catch (e: TimeoutCancellationException) {
-    PaletteBitmap(
-        AppCompatResources.getDrawable(context, R.drawable.default_album_art)!!.toBitmap(),
-        context.getColor(R.color.defaultFooterColor)
-    )
-}
-
-
-fun loadImage(
-    context: Context,
-    song: Song,
-    colorCallback: (Song, Drawable, Int) -> Unit,
-) {
-    loadImage(context)
-        .from(song)
-        .into(
-            PaletteTargetBuilder(context)
-                .onResourceReady { result, palette ->
-                    colorCallback(song, result, palette)
-                }
-                .build()
-        )
-        .enqueue()
-}
-
-inline fun loadImage(context: Context, cfg: ImageRequest.Builder.() -> Unit) {
-    Coil.imageLoader(context).enqueue(
-        ImageRequest.Builder(context).apply(cfg).build()
-    )
-}
 
 fun loadImage(context: Context): ChainBuilder = ChainBuilder(context)
 
@@ -79,14 +32,26 @@ class ChainBuilder internal constructor(context: Context) {
         requestBuilder.data(data)
         return this
     }
+
     fun into(view: ImageView): ChainBuilder {
         requestBuilder.target(view)
         return this
     }
+
     fun into(target: Target): ChainBuilder {
         requestBuilder.target(target)
         return this
     }
+
+    fun into(
+        onStart: (placeholder: Drawable?) -> Unit = {},
+        onError: (error: Drawable?) -> Unit = {},
+        onSuccess: (result: Drawable) -> Unit = {},
+    ): ChainBuilder {
+        requestBuilder.target(onStart, onError, onSuccess)
+        return this
+    }
+
     fun config(block: ImageRequest.Builder.() -> Unit): ChainBuilder {
         requestBuilder.apply(block)
         return this
@@ -94,10 +59,13 @@ class ChainBuilder internal constructor(context: Context) {
 
     fun default(@DrawableRes res: Int): ChainBuilder {
         requestBuilder.placeholder(res)
+        requestBuilder.error(res)
         return this
     }
-    fun default(drawable: Drawable): ChainBuilder {
+
+    fun default(drawable: Drawable?): ChainBuilder {
         requestBuilder.placeholder(drawable)
+        requestBuilder.error(drawable)
         return this
     }
 
@@ -105,21 +73,34 @@ class ChainBuilder internal constructor(context: Context) {
         requestBuilder.size(size)
         return this
     }
+
     fun size(width: Dimension, height: Dimension): ChainBuilder {
         requestBuilder.size(Size(width, height))
         return this
     }
 
+    fun size(resolver: SizeResolver): ChainBuilder {
+        requestBuilder.size(resolver)
+        return this
+    }
+
+    fun parameters(parameters: Parameters): ChainBuilder {
+        requestBuilder.parameters(parameters)
+        return this
+    }
+
+    fun withPalette(): ChainBuilder {
+        requestBuilder.setParameter(PARAMETERS_KEY_PALETTE, true)
+        return this
+    }
+
     private val request get() = requestBuilder.build()
-    fun enqueue() {
-        loader.enqueue(request)
-    }
-    suspend fun execute() {
-        loader.execute(request)
-    }
-    fun execute(coroutineScope: CoroutineScope) {
+    fun enqueue(): Disposable = loader.enqueue(request)
+
+    suspend fun execute(): ImageResult = loader.execute(request)
+
+    fun execute(coroutineScope: CoroutineScope): Job =
         coroutineScope.launch {
             loader.execute(request)
         }
-    }
 }

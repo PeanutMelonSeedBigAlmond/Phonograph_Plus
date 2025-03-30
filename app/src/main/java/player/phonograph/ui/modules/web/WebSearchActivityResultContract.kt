@@ -4,15 +4,15 @@
 
 package player.phonograph.ui.modules.web
 
-import lib.phonograph.misc.ActivityResultContractTool
+import lib.activityresultcontract.ActivityResultLauncherDelegate
+import mms.lastfm.LastFmAlbum
+import mms.lastfm.LastFmArtist
+import mms.lastfm.LastFmTrack
+import mms.musicbrainz.MusicBrainzArtist
+import mms.musicbrainz.MusicBrainzRecording
+import mms.musicbrainz.MusicBrainzRelease
+import mms.musicbrainz.MusicBrainzReleaseGroup
 import player.phonograph.ui.modules.web.WebSearchLauncher.selectable
-import util.phonograph.tagsources.lastfm.LastFmAlbum
-import util.phonograph.tagsources.lastfm.LastFmArtist
-import util.phonograph.tagsources.lastfm.LastFmTrack
-import util.phonograph.tagsources.musicbrainz.MusicBrainzArtist
-import util.phonograph.tagsources.musicbrainz.MusicBrainzRecording
-import util.phonograph.tagsources.musicbrainz.MusicBrainzRelease
-import util.phonograph.tagsources.musicbrainz.MusicBrainzReleaseGroup
 import androidx.activity.result.contract.ActivityResultContract
 import android.app.Activity.RESULT_OK
 import android.content.Context
@@ -47,9 +47,9 @@ class WebSearchActivityResultContract : ActivityResultContract<Intent, Any?>() {
     }
 }
 
-class WebSearchTool : ActivityResultContractTool<Intent, Any?>() {
-    override fun key(): String = "WebSearch"
-    override fun contract(): ActivityResultContract<Intent, Any?> = WebSearchActivityResultContract()
+class WebSearchTool : ActivityResultLauncherDelegate<Intent, Any?>() {
+    override val key: String = "WebSearch"
+    override val contract: ActivityResultContract<Intent, Any?> = WebSearchActivityResultContract()
 }
 
 interface IWebSearchRequester {

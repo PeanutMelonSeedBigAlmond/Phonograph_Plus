@@ -1,7 +1,5 @@
 package player.phonograph.service.player
 
-import player.phonograph.service.player.PlayerController.Companion.PAUSE_FOR_LOSS_OF_FOCUS
-import player.phonograph.service.player.PlayerController.Companion.PAUSE_FOR_TRANSIENT_LOSS_OF_FOCUS
 import player.phonograph.service.player.PlayerController.ControllerHandler.Companion.DUCK
 import player.phonograph.service.player.PlayerController.ControllerHandler.Companion.UNDUCK
 import androidx.media.AudioAttributesCompat
@@ -19,7 +17,11 @@ class AudioFocusManager(private val controller: PlayerController) : AudioManager
     private val audioManager: AudioManager = controller.service.getSystemService(AUDIO_SERVICE) as AudioManager
 
     fun requestAudioFocus(): Boolean {
-        return AudioManagerCompat.requestAudioFocus(audioManager, audioFocusRequest) == AudioManager.AUDIOFOCUS_GAIN
+        return if (!controller.ignoreAudioFocus) {
+            AudioManagerCompat.requestAudioFocus(audioManager, audioFocusRequest) == AudioManager.AUDIOFOCUS_GAIN
+        } else {
+            true
+        }
     }
 
     fun abandonAudioFocus() {
@@ -41,10 +43,10 @@ class AudioFocusManager(private val controller: PlayerController) : AudioManager
     override fun onAudioFocusChange(focusChange: Int) {
         when (focusChange) {
             AudioManager.AUDIOFOCUS_GAIN                    -> {
-                if (!controller.isPlaying()) {
+                if (!controller.isPlaying) {
                     when (controller.pauseReason) {
-                        PAUSE_FOR_TRANSIENT_LOSS_OF_FOCUS -> controller.play()
-                        PAUSE_FOR_LOSS_OF_FOCUS           ->
+                        PauseReason.PAUSE_FOR_TRANSIENT_LOSS_OF_FOCUS -> controller.play()
+                        PauseReason.PAUSE_FOR_LOSS_OF_FOCUS           ->
                             if (controller.resumeAfterAudioFocusGain) {
                                 controller.play()
                             }
@@ -56,15 +58,15 @@ class AudioFocusManager(private val controller: PlayerController) : AudioManager
 
             AudioManager.AUDIOFOCUS_LOSS                    -> {
                 // Lost focus for an unbounded amount of time: stop playback and release media playback
-                controller.pause(releaseResource = true, reason = PAUSE_FOR_LOSS_OF_FOCUS)
+                controller.pause(releaseResource = true, reason = PauseReason.PAUSE_FOR_LOSS_OF_FOCUS)
             }
 
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT          -> {
                 // Lost focus for a short time, but we have to stop
                 // playback. We don't release the media playback because playback
                 // is likely to resume
-                if (controller.isPlaying()) {
-                    controller.pause(releaseResource = false, reason = PAUSE_FOR_TRANSIENT_LOSS_OF_FOCUS)
+                if (controller.isPlaying) {
+                    controller.pause(releaseResource = false, reason = PauseReason.PAUSE_FOR_TRANSIENT_LOSS_OF_FOCUS)
                 }
             }
 

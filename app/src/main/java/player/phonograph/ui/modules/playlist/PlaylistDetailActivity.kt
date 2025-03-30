@@ -8,62 +8,69 @@ import com.h6ah4i.android.widget.advrecyclerview.animator.RefactoredDefaultItemA
 import com.h6ah4i.android.widget.advrecyclerview.draggable.RecyclerViewDragDropManager
 import com.h6ah4i.android.widget.advrecyclerview.utils.WrapperAdapterUtils
 import com.simplecityapps.recyclerview_fastscroll.interfaces.OnFastScrollStateChangeListener
-import lib.phonograph.misc.CreateFileStorageAccessTool
-import lib.phonograph.misc.ICreateFileStorageAccess
-import lib.phonograph.misc.IOpenDirStorageAccess
-import lib.phonograph.misc.IOpenFileStorageAccess
-import lib.phonograph.misc.OpenDirStorageAccessTool
-import lib.phonograph.misc.OpenFileStorageAccessTool
+import lib.activityresultcontract.registerActivityResultLauncherDelegate
 import lib.phonograph.misc.menuProvider
-import mt.tint.setActivityToolbarColorAuto
-import mt.tint.viewtint.setBackgroundTint
-import mt.util.color.primaryTextColor
-import mt.util.color.secondaryDisabledTextColor
-import mt.util.color.secondaryTextColor
+import lib.storage.launcher.CreateFileStorageAccessDelegate
+import lib.storage.launcher.ICreateFileStorageAccessible
+import lib.storage.launcher.IOpenDirStorageAccessible
+import lib.storage.launcher.IOpenFileStorageAccessible
+import lib.storage.launcher.OpenDirStorageAccessDelegate
+import lib.storage.launcher.OpenFileStorageAccessDelegate
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 import player.phonograph.R
 import player.phonograph.databinding.ActivityPlaylistDetailBinding
+import player.phonograph.mechanism.broadcast.PlaylistsModifiedReceiver
 import player.phonograph.mechanism.event.MediaStoreTracker
 import player.phonograph.model.Song
 import player.phonograph.model.UIMode
-import player.phonograph.model.getReadableDurationString
-import player.phonograph.model.playlist.FilePlaylist
+import player.phonograph.model.playlist.FilePlaylistLocation
 import player.phonograph.model.playlist.Playlist
-import player.phonograph.model.playlist.SmartPlaylist
-import player.phonograph.model.totalDuration
-import player.phonograph.repo.mediastore.loaders.PlaylistLoader
-import player.phonograph.ui.activities.base.AbsSlidingMusicPanelActivity
+import player.phonograph.repo.loader.Playlists
+import player.phonograph.ui.modules.panel.AbsSlidingMusicPanelActivity
 import player.phonograph.util.parcelable
+import player.phonograph.util.text.readableDuration
+import player.phonograph.util.theme.accentColor
 import player.phonograph.util.theme.getTintedDrawable
+import player.phonograph.util.theme.primaryColor
+import player.phonograph.util.ui.hideKeyboard
 import player.phonograph.util.ui.setUpFastScrollRecyclerViewColor
-import util.phonograph.playlist.mediastore.moveItemViaMediastore
-import util.phonograph.playlist.mediastore.removeFromPlaylistViaMediastore
+import player.phonograph.util.ui.showKeyboard
+import util.theme.color.primaryTextColor
+import util.theme.color.secondaryDisabledTextColor
+import util.theme.color.secondaryTextColor
+import util.theme.view.menu.tintOverflowButtonColor
+import util.theme.view.menu.tintToolbarMenuActionIcons
+import util.theme.view.setBackgroundTint
+import util.theme.view.toolbar.setToolbarColor
+import androidx.activity.addCallback
 import androidx.core.graphics.BlendModeCompat
 import androidx.core.widget.addTextChangedListener
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.withCreated
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.view.Menu
-import android.view.MenuItem
 import android.view.View
 import android.view.View.GONE
 import android.view.View.VISIBLE
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 
 class PlaylistDetailActivity :
         AbsSlidingMusicPanelActivity(),
-        IOpenFileStorageAccess,
-        ICreateFileStorageAccess,
-        IOpenDirStorageAccess {
+        IOpenFileStorageAccessible,
+        ICreateFileStorageAccessible,
+        IOpenDirStorageAccessible {
 
     private lateinit var binding: ActivityPlaylistDetailBinding
 
-    private val model: PlaylistDetailViewModel by viewModel { parametersOf(parseIntent(intent)) }
+    private val viewModel: PlaylistDetailViewModel by viewModel { parametersOf(parseIntent(intent), emptyList<Song>()) }
 
     private lateinit var adapter: PlaylistSongDisplayAdapter // init in OnCreate() -> setUpRecyclerView()
 
@@ -72,12 +79,10 @@ class PlaylistDetailActivity :
     private var wrappedAdapter: RecyclerView.Adapter<RecyclerView.ViewHolder>? = null
 
     // for saf callback
-    override val openFileStorageAccessTool: OpenFileStorageAccessTool =
-        OpenFileStorageAccessTool()
-    override val openDirStorageAccessTool: OpenDirStorageAccessTool =
-        OpenDirStorageAccessTool()
-    override val createFileStorageAccessTool: CreateFileStorageAccessTool =
-        CreateFileStorageAccessTool()
+    override val createFileStorageAccessDelegate: CreateFileStorageAccessDelegate = CreateFileStorageAccessDelegate()
+    override val openDirStorageAccessDelegate: OpenDirStorageAccessDelegate = OpenDirStorageAccessDelegate()
+    override val openFileStorageAccessDelegate: OpenFileStorageAccessDelegate = OpenFileStorageAccessDelegate()
+
 
     /* ********************
      *
@@ -89,58 +94,84 @@ class PlaylistDetailActivity :
 
         binding = ActivityPlaylistDetailBinding.inflate(layoutInflater)
 
-        openFileStorageAccessTool.register(lifecycle, activityResultRegistry)
-        openDirStorageAccessTool.register(lifecycle, activityResultRegistry)
-        createFileStorageAccessTool.register(lifecycle, activityResultRegistry)
+        registerActivityResultLauncherDelegate(
+            createFileStorageAccessDelegate,
+            openDirStorageAccessDelegate,
+            openFileStorageAccessDelegate,
+        )
+
         lifecycle.addObserver(MediaStoreListener())
+        LocalBroadcastManager.getInstance(this)
+            .registerReceiver(playlistsModifiedReceiver, PlaylistsModifiedReceiver.filter)
 
         super.onCreate(savedInstanceState)
         setUpToolbar()
 
         prepareRecyclerView()
-        updateRecyclerView(editMode = false)
         setUpDashBroad()
 
+        initialize()
+
         observeData()
+
+        setupOnBackPressCallback()
+    }
+
+
+    private fun initialize() {
+        val playlist = viewModel.playlist
+        supportActionBar!!.title = playlist.name
+
+        lifecycleScope.launch {
+            if (!checkExistence(playlist)) finish()  // File Playlist was deleted
+            execute(Fetch)
+        }
     }
 
     private fun observeData() {
         lifecycleScope.launch {
-            model.songs.collect { songs ->
+            viewModel.items.collect { songs ->
                 adapter.dataset = songs
                 binding.empty.visibility = if (songs.isEmpty()) VISIBLE else GONE
-                updateDashboard(model.playlist.value, songs)
             }
         }
-
         lifecycleScope.launch {
-            model.currentMode.collect { mode ->
-                switchMode(model.previousMode, mode)
+            viewModel.currentMode.collect { mode ->
                 supportActionBar!!.title =
                     if (mode == UIMode.Editor)
-                        "${model.playlist.value.name} [${getString(R.string.edit)}]"
+                        "${viewModel.playlist.name} [${getString(R.string.edit)}]"
                     else
-                        model.playlist.value.name
+                        viewModel.playlist.name
+                updateBannerVisibility(mode)
+                @SuppressLint("NotifyDataSetChanged")
+                adapter.notifyDataSetChanged()
+                if (mode == UIMode.Common) execute(Refresh(true))
             }
         }
         lifecycleScope.launch {
-            model.playlist.collect { playlist ->
-                model.fetchAllSongs(this@PlaylistDetailActivity)
-                supportActionBar!!.title = playlist.name
-                if (playlist !is SmartPlaylist &&
-                    !PlaylistLoader.checkExistence(this@PlaylistDetailActivity, playlist.id)
-                ) {
-                    // File Playlist was deleted
-                    finish()
+            viewModel.totalCount.collect {
+                with(binding) {
+                    @SuppressLint("SetTextI18n")
+                    songCountText.text = it.toString()
                 }
-                updateDashboard(playlist, model.songs.value)
             }
         }
         lifecycleScope.launch {
-            model.keyword.collect { word ->
-                if (model.currentMode.value == UIMode.Search) {
-                    model.searchSongs(this@PlaylistDetailActivity, word)
+            viewModel.totalDuration.collect {
+                with(binding) {
+                    durationText.text = readableDuration(it)
                 }
+            }
+        }
+    }
+
+    private fun setupOnBackPressCallback() {
+        onBackPressedDispatcher.addCallback {
+            if (viewModel.currentMode.value != UIMode.Common) {
+                execute(UpdateMode(UIMode.Common))
+            } else {
+                remove()
+                onBackPressedDispatcher.onBackPressed()
             }
         }
     }
@@ -148,17 +179,15 @@ class PlaylistDetailActivity :
     override fun createContentView(): View = wrapSlidingMusicPanel(binding.root)
 
     private fun setUpToolbar() {
-        binding.toolbar.setBackgroundColor(primaryColor)
         setSupportActionBar(binding.toolbar)
         supportActionBar!!.setDisplayHomeAsUpEnabled(true)
-        addMenuProvider(menuProvider(this::setupMenu, this::setupMenuCallback))
-
-        setActivityToolbarColorAuto(binding.toolbar)
+        addMenuProvider(menuProvider(this::setupMenu))
+        setToolbarColor(binding.toolbar, primaryColor())
     }
 
     private fun prepareRecyclerView() {
         // FastScrollRecyclerView
-        binding.recyclerView.setUpFastScrollRecyclerViewColor(this, accentColor)
+        binding.recyclerView.setUpFastScrollRecyclerViewColor(this, accentColor())
         binding.recyclerView.setOnFastScrollStateChangeListener(
             object : OnFastScrollStateChangeListener {
                 override fun onFastScrollStart() {
@@ -169,48 +198,30 @@ class PlaylistDetailActivity :
                 override fun onFastScrollStop() {}
             }
         )
-        // adapter
-        adapter = PlaylistSongDisplayAdapter(this)
-    }
+        // Adapter
+        adapter = PlaylistSongDisplayAdapter(
+            this,
+            viewModel,
+            PlaylistSongDisplayAdapter.PlaylistSongDisplayPresenter { adapter.menuProvider }
+        )
+        // DragDropAdapter
+        binding.recyclerView.also { recyclerView ->
+            recyclerViewDragDropManager = RecyclerViewDragDropManager().apply {
+                attachRecyclerView(recyclerView)
+                setInitiateOnTouch(true)
+                setInitiateOnLongPress(false)
+                wrappedAdapter = createWrappedAdapter(adapter)
+            }
 
-    private fun updateRecyclerView(editMode: Boolean) {
-
-        if (!editMode) {
-            adapter.editMode = false
-            binding.recyclerView.also { rv ->
-                rv.layoutManager = LinearLayoutManager(this)
-                rv.adapter = adapter
-            }
-            adapter.onMove = { _, _ -> true }
-            adapter.onDelete = {}
-        } else {
-            val playlist = model.playlist.value
-            adapter.editMode = true
-            binding.recyclerView.also { rv ->
-                recyclerViewDragDropManager = RecyclerViewDragDropManager()
-                recyclerViewDragDropManager!!.attachRecyclerView(rv)
-                wrappedAdapter = recyclerViewDragDropManager!!.createWrappedAdapter(adapter)
-
-                rv.adapter = wrappedAdapter
-                rv.layoutManager = LinearLayoutManager(this)
-                rv.itemAnimator = RefactoredDefaultItemAnimator()
-            }
-            adapter.onMove = { fromPosition: Int, toPosition: Int ->
-                runBlocking {
-                    moveItemViaMediastore(this@PlaylistDetailActivity, playlist.id, fromPosition, toPosition)
-                }
-            }
-            adapter.onDelete = {
-                runBlocking {
-                    removeFromPlaylistViaMediastore(this@PlaylistDetailActivity, adapter.dataset[it], playlist.id)
-                }
-            }
+            recyclerView.adapter = wrappedAdapter
+            recyclerView.layoutManager = LinearLayoutManager(this)
+            recyclerView.itemAnimator = RefactoredDefaultItemAnimator()
         }
     }
 
     private fun setUpDashBroad() {
         with(binding) {
-            dashBroad.setBackgroundColor(primaryColor)
+            dashBroad.setBackgroundColor(primaryColor())
             dashBroad.addOnOffsetChangedListener { _, verticalOffset ->
                 updateRecyclerviewPadding(verticalOffset)
             }
@@ -218,8 +229,8 @@ class PlaylistDetailActivity :
         }
 
         // colors
-        val textColor = secondaryTextColor(primaryColor)
-        val iconColor = secondaryDisabledTextColor(primaryColor)
+        val textColor = secondaryTextColor(primaryColor())
+        val iconColor = secondaryDisabledTextColor(primaryColor())
         with(binding) {
             nameIcon.setImageDrawable(
                 getTintedDrawable(
@@ -263,6 +274,11 @@ class PlaylistDetailActivity :
             pathText.setTextColor(textColor)
 
 
+            val playlist = viewModel.playlist
+            nameText.text = playlist.name
+            pathText.text = playlist.location.text(this@PlaylistDetailActivity)
+
+
             with(searchBox) {
                 searchBadge.setImageDrawable(
                     getTintedDrawable(R.drawable.ic_search_white_24dp, textColor)
@@ -273,18 +289,18 @@ class PlaylistDetailActivity :
                 close.setOnClickListener {
                     val editable = editQuery.editableText
                     if (editable.isEmpty()) {
-                        model.updateCurrentMode(UIMode.Common)
+                        execute(UpdateMode(UIMode.Common))
                     } else {
-                        editable.clear()
+                        editQuery.editableText.clear()
                     }
                 }
                 editQuery.setTextColor(textColor)
                 editQuery.setHintTextColor(iconColor)
                 editQuery.setBackgroundTint(textColor)
-            }
-            searchBox.editQuery.addTextChangedListener { editable ->
-                if (editable != null) {
-                    model.updateKeyword(editable.toString())
+                editQuery.addTextChangedListener { editable ->
+                    if (editable != null) {
+                        execute(Search(editable.toString()))
+                    }
                 }
             }
         }
@@ -304,104 +320,36 @@ class PlaylistDetailActivity :
         }
     }
 
-    private fun showSearchBar() {
+    private fun updateBannerVisibility(mode: UIMode) {
         with(binding) {
-            searchBar.visibility = VISIBLE
-            searchBox.editQuery.setText(model.keyword.value)
-            updateRecyclerviewPadding(0)
-        }
-    }
-
-    private fun hideSearchBar() {
-        with(binding) {
-            searchBar.visibility = GONE
-            searchBox.editQuery.setText("")
-            updateRecyclerviewPadding(searchBar.height)
-        }
-    }
-
-    private fun updateDashboard(playlist: Playlist, songs: List<Song>) {
-        // text
-        with(binding) {
-            nameText.text = playlist.name
-            songCountText.text = songs.size.toString()
-            durationText.text = getReadableDurationString(songs.totalDuration())
-            if (playlist is FilePlaylist) {
-                pathText.text = playlist.associatedFilePath
+            // Search Bar
+            val searchBarVisibility = mode == UIMode.Search
+            searchBar.visibility = if (searchBarVisibility) VISIBLE else GONE
+            // Dashboard
+            val statsBarVisibility = mode != UIMode.Search
+            statsBar.visibility = if (statsBarVisibility) VISIBLE else GONE
+            // IME
+            if (searchBarVisibility) {
+                showKeyboard(this@PlaylistDetailActivity, searchBox.editQuery)
             } else {
-                pathText.visibility = GONE
-                pathIcon.visibility = GONE
+                hideKeyboard(this@PlaylistDetailActivity, searchBox.editQuery)
             }
+
         }
     }
 
     private fun setupMenu(menu: Menu) {
-        playlistDetailToolbar(menu, this, model, iconColor = primaryTextColor(primaryColor))
+        val iconColor = primaryTextColor(panelViewModel.activityColor.value)
+        PlaylistToolbarMenuProvider(::execute).inflateMenu(menu, this, viewModel.playlist, iconColor)
+        tintToolbarMenuActionIcons(menu, iconColor)
+        tintOverflowButtonColor(this, iconColor)
     }
 
-    private fun setupMenuCallback(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            android.R.id.home -> {
-                onBackPressed()
-                true
-            }
-
-            else              -> false
+    private fun execute(action: PlaylistAction): Boolean {
+        lifecycleScope.launch {
+            viewModel.execute(this@PlaylistDetailActivity, action)
         }
-    }
-
-
-    @Synchronized
-    fun switchMode(oldMode: UIMode, newMode: UIMode) {
-
-        when (oldMode) {
-            UIMode.Common -> when (newMode) {
-                UIMode.Common -> {}
-                UIMode.Editor -> {
-                    updateRecyclerView(editMode = true)
-                }
-
-                UIMode.Search -> {
-                    model.searchSongs(this, model.keyword.value)
-                    showSearchBar()
-                }
-            }
-
-            UIMode.Editor -> when (newMode) {
-                UIMode.Common -> {
-                    updateRecyclerView(editMode = false)
-                }
-
-                UIMode.Editor -> {}
-                UIMode.Search -> {
-                    updateRecyclerView(editMode = false)
-                    model.searchSongs(this, model.keyword.value)
-                    showSearchBar()
-                }
-            }
-
-            UIMode.Search -> when (newMode) {
-                UIMode.Common -> {
-                    model.fetchAllSongs(this)
-                    hideSearchBar()
-                }
-
-                UIMode.Editor -> {
-                    model.fetchAllSongs(this)
-                    updateRecyclerView(editMode = true)
-                    hideSearchBar()
-                }
-
-                UIMode.Search -> {}
-            }
-        }
-    }
-
-    override fun onBackPressed() {
-        when {
-            model.currentMode.value == UIMode.Common -> super.onBackPressed()
-            else                                     -> model.updateCurrentMode(UIMode.Common)
-        }
+        return true
     }
 
     /* *******************
@@ -416,6 +364,7 @@ class PlaylistDetailActivity :
             WrapperAdapterUtils.releaseAll(it)
             wrappedAdapter = null
         }
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(playlistsModifiedReceiver)
         binding.recyclerView.adapter = null
     }
 
@@ -424,12 +373,28 @@ class PlaylistDetailActivity :
         recyclerViewDragDropManager?.cancelDrag()
     }
 
-    private inner class MediaStoreListener : MediaStoreTracker.LifecycleListener() {
-        override fun onMediaStoreChanged() {
-            adapter.dataset = emptyList()
-            model.refreshPlaylist(this@PlaylistDetailActivity)
+    private fun refreshIfInNeed() {
+        lifecycleScope.launch(Dispatchers.IO) {
+            if (viewModel.currentMode.value != UIMode.Editor) {
+                lifecycle.withCreated {
+                    // adapter.dataset = emptyList()
+                    execute(Refresh(fetch = true))
+                }
+            }
         }
     }
+
+
+    private inner class MediaStoreListener : MediaStoreTracker.LifecycleListener() {
+        override fun onMediaStoreChanged() = refreshIfInNeed()
+    }
+
+    private val playlistsModifiedReceiver = object : PlaylistsModifiedReceiver() {
+        override fun onPlaylistChanged(context: Context, intent: Intent) = refreshIfInNeed()
+    }
+
+    private suspend fun checkExistence(playlist: Playlist): Boolean =
+        !(playlist.location is FilePlaylistLocation && !Playlists.exists(this, playlist.location))
 
     /* *******************
      *   companion object

@@ -1,14 +1,10 @@
+@file:Suppress("UnstableApiUsage")
+
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
         google()
         maven(url = "https://jitpack.io")
-    }
-
-    versionCatalogs {
-        create("plugins") {
-            from(files("./gradle/plugins.versions.toml"))
-        }
     }
 }
 
@@ -24,4 +20,4 @@ rootProject.buildFileName = "build.gradle.kts"
 
 include(":app")
 include(":tools:changelog-generator")
-includeBuild(file("tools/release-tool"))
+

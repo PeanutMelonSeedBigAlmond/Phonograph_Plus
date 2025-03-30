@@ -4,12 +4,21 @@
 
 package player.phonograph.settings
 
+import lib.phonograph.misc.MonetColor
+import player.phonograph.mechanism.explorer.Locations
+import player.phonograph.model.ItemLayoutStyle
+import player.phonograph.model.NowPlayingScreen
 import player.phonograph.model.SongClickMode
+import player.phonograph.model.coil.ImageSourceConfig
+import player.phonograph.model.file.defaultStartDirectory
+import player.phonograph.model.notification.NotificationActionsConfig
+import player.phonograph.model.pages.PagesConfig
 import player.phonograph.model.sort.SortMode
 import player.phonograph.model.sort.SortRef
 import player.phonograph.model.time.Duration
 import player.phonograph.model.time.TimeIntervalCalculationMode
-import player.phonograph.ui.adapter.ItemLayoutStyle
+import util.theme.materials.MaterialColor
+import java.io.File
 import androidx.datastore.preferences.core.booleanPreferencesKey as booleanPK
 import androidx.datastore.preferences.core.intPreferencesKey as intPK
 import androidx.datastore.preferences.core.longPreferencesKey as longPK
@@ -18,273 +27,344 @@ import androidx.datastore.preferences.core.stringPreferencesKey as stringPK
 /**
  * Container Object for all available registered [PreferenceKey]
  */
-@Suppress("ClassName")
+@Suppress("ClassName", "ConvertObjectToDataObject")
 object Keys {
 
     // Appearance
-    data object homeTabConfigJsonString :
+    object theme :
+            PrimitiveKey<String>(stringPK(THEME), { THEME_AUTO_LIGHTBLACK })
+
+    object _homeTabConfigJson :
             PrimitiveKey<String>(stringPK(HOME_TAB_CONFIG), { "" })
 
-    data object coloredNotification :
-            PrimitiveKey<Boolean>(booleanPK(COLORED_NOTIFICATION), { true })
+    object homeTabConfig :
+            CompositeKey<PagesConfig>(HomeTabConfigPreferenceProvider)
 
-    data object classicNotification :
-            PrimitiveKey<Boolean>(booleanPK(CLASSIC_NOTIFICATION), { false })
-
-    data object coloredAppShortcuts :
+    object coloredAppShortcuts :
             PrimitiveKey<Boolean>(booleanPK(COLORED_APP_SHORTCUTS), { true })
 
-    data object fixedTabLayout :
+    object fixedTabLayout :
             PrimitiveKey<Boolean>(booleanPK(FIXED_TAB_LAYOUT), { false })
 
+    object selectedPrimaryColor :
+            PrimitiveKey<Int>(intPK(SELECTED_PRIMARY_COLOR), { MaterialColor.Blue._A400.asColor })
+
+    object selectedAccentColor :
+            PrimitiveKey<Int>(intPK(SELECTED_ACCENT_COLOR), { MaterialColor.Yellow._900.asColor })
+
+    object enableMonet :
+            PrimitiveKey<Boolean>(booleanPK(ENABLE_MONET), { false })
+
+    object monetPalettePrimaryColor :
+            PrimitiveKey<Int>(intPK(MONET_PALETTE_PRIMARY_COLOR), { MonetColor.defaultMonetPrimaryColor.value })
+
+    object monetPaletteAccentColor :
+            PrimitiveKey<Int>(intPK(MONET_PALETTE_ACCENT_COLOR), { MonetColor.defaultMonetAccentColor.value })
+
+
+    // Appearance - Notification
+    object coloredNotification :
+            PrimitiveKey<Boolean>(booleanPK(COLORED_NOTIFICATION), { true })
+
+    object classicNotification :
+            PrimitiveKey<Boolean>(booleanPK(CLASSIC_NOTIFICATION), { false })
+
+    object _notificationActionsJson :
+            PrimitiveKey<String>(stringPK(NOTIFICATION_ACTIONS), { "{}" })
+
+    object notificationActions :
+            CompositeKey<NotificationActionsConfig>(NotificationActionsPreferenceProvider)
+
     // Behavior-Retention
-    data object rememberLastTab :
+    object rememberLastTab :
             PrimitiveKey<Boolean>(booleanPK(REMEMBER_LAST_TAB), { true })
 
-    data object lastPage :
+    object lastPage :
             PrimitiveKey<Int>(intPK(LAST_PAGE), { 0 })
 
-    data object lastMusicChooser :
-            PrimitiveKey<Int>(intPK(LAST_MUSIC_CHOOSER), { 0 })
-
-    data object nowPlayingScreenIndex :
+    object _nowPlayingScreenIndex :
             PrimitiveKey<Int>(intPK(NOW_PLAYING_SCREEN_ID), { 0 })
+
+    object nowPlayingScreen :
+            CompositeKey<NowPlayingScreen>(NowPlayingScreenPreferenceProvider)
 
     // Database
 
     // Behavior-File
-    data object imageSourceConfigJsonString :
+    object _startDirectoryPath :
+            PrimitiveKey<String>(stringPK(START_DIRECTORY), { defaultStartDirectory.path })
+
+    object startDirectory :
+            CompositeKey<File>(StartDirectoryPreferenceProvider)
+
+    object preloadImages :
+            PrimitiveKey<Boolean>(booleanPK(PRELOAD_IMAGES), { true })
+
+    object _imageSourceConfigJson :
             PrimitiveKey<String>(stringPK(IMAGE_SOURCE_CONFIG), { "{}" })
 
+    object imageSourceConfig :
+            CompositeKey<ImageSourceConfig>(CoilImageSourcePreferenceProvider)
+
+    object imageCache :
+            PrimitiveKey<Boolean>(booleanPK(IMAGE_CACHE), { false })
+
     // Behavior-Playing
-    data object songItemClickMode :
+    object songItemClickMode :
             PrimitiveKey<Int>(intPK(SONG_ITEM_CLICK_MODE), { SongClickMode.SONG_PLAY_NOW })
 
-    data object songItemClickExtraFlag :
+    object songItemClickExtraFlag :
             PrimitiveKey<Int>(intPK(SONG_ITEM_CLICK_EXTRA_FLAG), { SongClickMode.FLAG_MASK_PLAY_QUEUE_IF_EMPTY })
 
-    data object keepPlayingQueueIntact :
-            PrimitiveKey<Boolean>(booleanPK(KEEP_PLAYING_QUEUE_INTACT), { true })
+    object externalPlayRequestShowPrompt :
+            PrimitiveKey<Boolean>(booleanPK(EXTERNAL_PLAY_REQUEST_SHOW_PROMPT), { false })
 
-    data object rememberShuffle :
-            PrimitiveKey<Boolean>(booleanPK(REMEMBER_SHUFFLE), { true })
+    object externalPlayRequestSingleMode :
+            PrimitiveKey<Int>(intPK(EXTERNAL_PLAY_REQUEST_SINGLE_MODE), { SongClickMode.SONG_PLAY_NOW })
 
-    data object gaplessPlayback :
+    object externalPlayRequestMultipleMode :
+            PrimitiveKey<Int>(intPK(EXTERNAL_PLAY_REQUEST_MULTIPLE_MODE), { SongClickMode.QUEUE_PLAY_NOW })
+
+    object externalPlayRequestSilence :
+            PrimitiveKey<Boolean>(booleanPK(EXTERNAL_PLAY_REQUEST_SILENCE), { false })
+
+    object gaplessPlayback :
             PrimitiveKey<Boolean>(booleanPK(GAPLESS_PLAYBACK), { false })
 
-    data object audioDucking :
+    object audioDucking :
             PrimitiveKey<Boolean>(booleanPK(AUDIO_DUCKING), { true })
 
-    data object resumeAfterAudioFocusGain :
+    object resumeAfterAudioFocusGain :
             PrimitiveKey<Boolean>(booleanPK(RESUME_AFTER_AUDIO_FOCUS_GAIN), { false })
 
-    data object enableLyrics :
+    object alwaysPlay :
+            PrimitiveKey<Boolean>(booleanPK(ALWAYS_PLAY), { false })
+
+    object enableLyrics :
             PrimitiveKey<Boolean>(booleanPK(ENABLE_LYRICS), { true })
 
-    data object broadcastSynchronizedLyrics :
+    object broadcastSynchronizedLyrics :
             PrimitiveKey<Boolean>(booleanPK(BROADCAST_SYNCHRONIZED_LYRICS), { true })
 
-    data object useLegacyStatusBarLyricsApi :
+    object useLegacyStatusBarLyricsApi :
             PrimitiveKey<Boolean>(booleanPK(USE_LEGACY_STATUS_BAR_LYRICS_API), { false })
 
-    data object broadcastCurrentPlayerState :
+    object broadcastCurrentPlayerState :
             PrimitiveKey<Boolean>(booleanPK(BROADCAST_CURRENT_PLAYER_STATE), { true })
 
+    object persistentPlaybackNotification :
+            PrimitiveKey<Boolean>(booleanPK(PERSISTENT_PLAYBACK_NOTIFICATION), { false })
+
     // Behavior-Lyrics
-    data object synchronizedLyricsShow :
+    object synchronizedLyricsShow :
             PrimitiveKey<Boolean>(booleanPK(SYNCHRONIZED_LYRICS_SHOW), { true })
 
-    data object displaySynchronizedLyricsTimeAxis :
+    object displaySynchronizedLyricsTimeAxis :
             PrimitiveKey<Boolean>(booleanPK(DISPLAY_LYRICS_TIME_AXIS), { true })
 
-    data object _lastAddedCutOffMode :
+    object _lastAddedCutOffMode :
             PrimitiveKey<Int>(intPK(LAST_ADDED_CUTOFF_MODE), { TimeIntervalCalculationMode.PAST.value })
 
-    data object _lastAddedCutOffDuration :
+    object _lastAddedCutOffDuration :
             PrimitiveKey<String>(stringPK(LAST_ADDED_CUTOFF_DURATION), { Duration.Week(3).serialise() })
 
-    data object lastAddedCutoffTimeStamp :
+    object lastAddedCutoffTimeStamp :
             CompositeKey<Long>(LastAddedCutOffDurationPreferenceProvider)
 
     // Upgrade
-    data object checkUpgradeAtStartup :
+    object checkUpgradeAtStartup :
             PrimitiveKey<Boolean>(booleanPK(CHECK_UPGRADE_AT_STARTUP), { false })
 
-    data object _checkUpdateInterval :
+    object _checkUpdateInterval :
             PrimitiveKey<String>(stringPK(CHECK_UPGRADE_INTERVAL), { Duration.Day(1).serialise() })
 
-    data object checkUpdateInterval :
+    object checkUpdateInterval :
             CompositeKey<Duration>(CheckUpdateIntervalPreferenceProvider)
 
-    data object lastCheckUpgradeTimeStamp :
+    object lastCheckUpgradeTimeStamp :
             PrimitiveKey<Long>(longPK(LAST_CHECK_UPGRADE_TIME), { 0 })
 
     // List-SortMode
-    data object _songSortMode :
+    object _songSortMode :
             PrimitiveKey<String>(stringPK(SONG_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object songSortMode :
+    object songSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.SongSortMode)
 
 
-    data object _albumSortMode :
+    object _albumSortMode :
             PrimitiveKey<String>(stringPK(ALBUM_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object albumSortMode :
+    object albumSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.AlbumSortMode)
 
 
-    data object _artistSortMode :
+    object _artistSortMode :
             PrimitiveKey<String>(stringPK(ARTIST_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object artistSortMode :
+    object artistSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.ArtistSortMode)
 
 
-    data object _genreSortMode :
+    object _genreSortMode :
             PrimitiveKey<String>(stringPK(GENRE_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object genreSortMode :
+    object genreSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.GenreSortMode)
 
 
-    data object _fileSortMode :
+    object _fileSortMode :
             PrimitiveKey<String>(stringPK(FILE_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object fileSortMode :
+    object fileSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.FileSortMode)
 
 
-    data object _collectionSortMode :
+    object _collectionSortMode :
             PrimitiveKey<String>(stringPK(SONG_COLLECTION_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object collectionSortMode :
+    object collectionSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.CollectionSortMode)
 
 
-    data object _playlistSortMode :
+    object _playlistSortMode :
             PrimitiveKey<String>(stringPK(PLAYLIST_SORT_MODE), { SortMode(SortRef.ID, false).serialize() })
 
-    data object playlistSortMode :
+    object playlistSortMode :
             CompositeKey<SortMode>(SortModePreferenceProvider.PlaylistSortMode)
 
 
     // List-Appearance
 
-    data object albumArtistColoredFooters :
+    object albumArtistColoredFooters :
             PrimitiveKey<Boolean>(booleanPK(ALBUM_ARTIST_COLORED_FOOTERS), { true })
 
-    data object albumColoredFooters :
+    object albumColoredFooters :
             PrimitiveKey<Boolean>(booleanPK(ALBUM_COLORED_FOOTERS), { true })
 
-    data object songColoredFooters :
+    object songColoredFooters :
             PrimitiveKey<Boolean>(booleanPK(SONG_COLORED_FOOTERS), { true })
 
-    data object artistColoredFooters :
+    object artistColoredFooters :
             PrimitiveKey<Boolean>(booleanPK(ARTIST_COLORED_FOOTERS), { true })
 
-    data object showFileImages :
+    object showFileImages :
             PrimitiveKey<Boolean>(booleanPK(SHOW_FILE_IMAGINES), { false })
 
     // ListPage-Appearance
 
-    data object _songItemLayout :
+    object _songItemLayout :
             PrimitiveKey<Int>(intPK(SONG_ITEM_LAYOUT), { ItemLayoutStyle.LIST_EXTENDED.ordinal })
 
-    data object songItemLayout :
+    object songItemLayout :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.SongItemLayoutProvider)
 
-    data object _songItemLayoutLand :
+    object _songItemLayoutLand :
             PrimitiveKey<Int>(intPK(SONG_ITEM_LAYOUT_LAND), { ItemLayoutStyle.LIST.ordinal })
 
-    data object songItemLayoutLand :
+    object songItemLayoutLand :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.LandSongItemLayoutProvider)
 
-    data object _albumItemLayout :
+    object _albumItemLayout :
             PrimitiveKey<Int>(intPK(ALBUM_ITEM_LAYOUT), { ItemLayoutStyle.LIST_3L.ordinal })
 
-    data object albumItemLayout :
+    object albumItemLayout :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.AlbumItemLayoutProvider)
 
-    data object _albumItemLayoutLand :
+    object _albumItemLayoutLand :
             PrimitiveKey<Int>(intPK(ALBUM_ITEM_LAYOUT_LAND), { ItemLayoutStyle.LIST_3L.ordinal })
 
-    data object albumItemLayoutLand :
+    object albumItemLayoutLand :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.LandAlbumItemLayoutProvider)
 
-    data object _artistItemLayout :
+    object _artistItemLayout :
             PrimitiveKey<Int>(intPK(ARTIST_ITEM_LAYOUT), { ItemLayoutStyle.LIST.ordinal })
 
-    data object artistItemLayout :
+    object artistItemLayout :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.ArtistItemLayoutProvider)
 
-    data object _artistItemLayoutLand :
+    object _artistItemLayoutLand :
             PrimitiveKey<Int>(intPK(ARTIST_ITEM_LAYOUT_LAND), { ItemLayoutStyle.LIST_3L.ordinal })
 
-    data object artistItemLayoutLand :
+    object artistItemLayoutLand :
             CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.LandArtistItemLayoutProvider)
 
-    data object songGridSize :
+    object _folderItemLayout :
+            PrimitiveKey<Int>(intPK(FOLDER_ITEM_LAYOUT), { ItemLayoutStyle.LIST.ordinal })
+
+    object folderItemLayout :
+            CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.FolderItemLayoutProvider)
+
+    object _folderItemLayoutLand :
+            PrimitiveKey<Int>(intPK(FOLDER_ITEM_LAYOUT_LAND), { ItemLayoutStyle.LIST_3L.ordinal })
+
+    object folderItemLayoutLand :
+            CompositeKey<ItemLayoutStyle>(ItemLayoutProvider.LandFolderItemLayoutProvider)
+
+    object songGridSize :
             PrimitiveKey<Int>(intPK(SONG_GRID_SIZE), { 1 })
 
-    data object songGridSizeLand :
+    object songGridSizeLand :
             PrimitiveKey<Int>(intPK(SONG_GRID_SIZE_LAND), { 2 })
 
-    data object albumGridSize :
+    object albumGridSize :
             PrimitiveKey<Int>(intPK(ALBUM_GRID_SIZE), { 2 })
 
-    data object albumGridSizeLand :
+    object albumGridSizeLand :
             PrimitiveKey<Int>(intPK(ALBUM_GRID_SIZE_LAND), { 3 })
 
-    data object artistGridSize :
+    object artistGridSize :
             PrimitiveKey<Int>(intPK(ARTIST_GRID_SIZE), { 3 })
 
-    data object artistGridSizeLand :
+    object artistGridSizeLand :
             PrimitiveKey<Int>(intPK(ARTIST_GRID_SIZE_LAND), { 4 })
 
-    data object genreGridSize :
+    object genreGridSize :
             PrimitiveKey<Int>(intPK(GENRE_GRID_SIZE), { 1 })
 
-    data object genreGridSizeLand :
+    object genreGridSizeLand :
             PrimitiveKey<Int>(intPK(GENRE_GRID_SIZE_LAND), { 2 })
 
-    data object playlistGridSize :
+    object playlistGridSize :
             PrimitiveKey<Int>(intPK(PLAYLIST_GRID_SIZE), { 1 })
 
-    data object playlistGridSizeLand :
+    object playlistGridSizeLand :
             PrimitiveKey<Int>(intPK(PLAYLIST_GRID_SIZE_LAND), { 2 })
 
+    object folderGridSize :
+            PrimitiveKey<Int>(intPK(FOLDER_GRID_SIZE), { 1 })
+
+    object folderGridSizeLand :
+            PrimitiveKey<Int>(intPK(FOLDER_GRID_SIZE_LAND), { 2 })
+
     // SleepTimer
-    data object lastSleepTimerValue :
+    object lastSleepTimerValue :
             PrimitiveKey<Int>(intPK(LAST_SLEEP_TIMER_VALUE), { 30 })
 
-    data object nextSleepTimerElapsedRealTime :
+    object nextSleepTimerElapsedRealTime :
             PrimitiveKey<Long>(longPK(NEXT_SLEEP_TIMER_ELAPSED_REALTIME), { -1L })
 
-    data object sleepTimerFinishMusic :
+    object sleepTimerFinishMusic :
             PrimitiveKey<Boolean>(booleanPK(SLEEP_TIMER_FINISH_SONG), { false })
 
     // Misc
-    data object ignoreUpgradeDate :
+    object ignoreUpgradeDate :
             PrimitiveKey<Long>(longPK(IGNORE_UPGRADE_DATE), { 0 })
 
-    data object pathFilterExcludeMode :
+    object pathFilterExcludeMode :
             PrimitiveKey<Boolean>(booleanPK(PATH_FILTER_EXCLUDE_MODE), { true })
 
     // Compatibility
-    data object useLegacyFavoritePlaylistImpl :
+    object alwaysUseMediaSessionToDisplayCover :
+            PrimitiveKey<Boolean>(booleanPK(ALWAYS_USE_MEDIA_SESSION_TO_DISPLAY_COVER), { false })
+
+    object useLegacyFavoritePlaylistImpl :
             PrimitiveKey<Boolean>(booleanPK(USE_LEGACY_FAVORITE_PLAYLIST_IMPL), { false })
 
-    data object useLegacyListFilesImpl :
+    object useLegacyListFilesImpl :
             PrimitiveKey<Boolean>(booleanPK(USE_LEGACY_LIST_FILES_IMPL), { false })
 
-    data object playlistFilesOperationBehaviour :
-            PrimitiveKey<String>(stringPK(PLAYLIST_FILES_OPERATION_BEHAVIOUR), { PLAYLIST_OPS_BEHAVIOUR_AUTO })
-
-    data object useLegacyDetailDialog :
-            PrimitiveKey<Boolean>(booleanPK(USE_LEGACY_DETAIL_DIALOG), { false })
-
-    data object disableRealTimeSearch :
+    object disableRealTimeSearch :
             PrimitiveKey<Boolean>(booleanPK(DISABLE_REAL_TIME_SEARCH), { false })
 
 }

@@ -4,19 +4,20 @@ _This part is not written very well._
 
 See also [Developer Guide](./Developer_Guide.md).
 
+_Last Update: 2025.03.05_
 
 ## **Requirement**
 
 **Build**:
 
-1. a PC : any desktop operate system platform (only `Windows` and `Ubuntu 20.04` are tested), I am not sure if it works
+1. a PC : any desktop operate system platform (only `Windows` and `Ubuntu 22.04` are tested), I am not sure if it works
    on `Android(Termux)` because jvm version.
-2. JDK 17 (we are using AGP 8.1.1 with gradle 8.3).
+2. JDK 17 (we are using AGP 8.8.2 with gradle 8.12.1).
 3. The connected and fast network.
 
 **Development**:
 
-Plus `Android Studio` with correspond `Android Gradle Plugin` (currently `Giraffe (Patch 1)`). 
+Plus `Android Studio` with correspond `Android Gradle Plugin` (currently `Android Studio Ladybug Feature Drop | 2024.2.2 Patch 2`).
 (`IDEA` might be not compatible because `Android Gradle Plugin` is too new)
 
 ## **Instructions (Build with commandline)**
@@ -58,15 +59,13 @@ yum install temurin-17-jdk
 
 ### 4) generate a new signing key or use your own
 
-using `keytool` from JDK
-
-```shell
-keytool -genkeypair -storepass <keystore-password> -alias <key-alias> -keypass <key-password> -keyalg RSA -keysize 2048 -keystore <your-signing-key-file-path->
-```
+See Also Appendix [Generate A New Keystore for Signing](#generate_keystore)
 
 ### 5) configure Signing Config
 
 create file `signing.properties` on repository's root:
+
+(Replace <\*> with yours.)
 
 ```properties
 storeFile=<your-signing-key-file-path->
@@ -75,9 +74,45 @@ keyAlias=<key-alias>
 keyPassword=<key-password>
 ```
 
-replace <\*> with yours.
+See Also Appendix [Generate A New Keystore for Signing](#generate_signing_properties)
+
+### 6) build
+
+Now, we can build project in variant of `Modern` and `Stable` with Build Type `Release` now. [^f]
+
+[^f]: See more in section _Build Variant_ from [Development Guild](./Developer_Guide.md#build-variants).
+
+```shell
+ ./gradlew assembleModernStableRelease --parallel
+```
+
+### 7) pick up file
+
+Built apk is in `./app/build/outputs/apk/modernStable/release/` with name `PhonographPlus_<VERSION>-modern-stable-release.apk`
+
+You can run
+
+```shell
+./gradlew PublishModernStableRelease
+```
+
+to move apk to `./products/ModernStableRelease` and rename to `Phonograph Plus_<VERSION>_ModernStableRelease.apk`
+
+## Appendix
+
+### Generate A New Keystore for Signing <a id="generate_keystore"></a>
+
+Use `keytool` from JDK:
+
+```shell
+keytool -genkeypair -storepass <keystore-password> -alias <key-alias> -keypass <key-password> -keyalg RSA -keysize 2048 -keystore <your-signing-key-file-path->
+```
+
+### Generate `signing.properties` <a id="generate_signing_properties"></a>
 
 You can create `signing.properties` by command:
+
+(Replace <\*> with yours.)
 
 ```shell
 echo "storeFile=<your-signing-key-file-path->" >> ./signing.properties
@@ -85,34 +120,3 @@ echo "storePassword=<keystore-password>" >> ./signing.properties
 echo "keyAlias=<key-alias>" >> ./signing.properties
 echo "keyPassword=<key-password>" >> ./signing.properties
 ```
-
-### 6) build
-
-We are building the build variant `Stable` (Build Type `Release`) now.
-
-See more in section Build Variant.
-
-```shell
- ./gradlew assembleStableRelease --parallel
-```
-
-if your version is before 0.4, replace `stable` with `common` (matching letter case), using:
-
-```shell
-./gradlew assembleCommonRelease --parallel
-```
-
-### 7) pick up file
-
-_Note: if the version is before 0.4, replace `stable` with `common` (matching letter case)_
-
-built apk is in `./app/build/outputs/apk/stable/release/` with name `PhonographPlus_<VERSION>-stable-release.apk`
-
-you can run
-
-```shell
-./gradlew PublishStableRelease
-```
-
-to move apk to `./products/stableRelease` and rename to `Phonograph Plus_<VERSION>.apk`
-

@@ -7,10 +7,14 @@ package player.phonograph.service.notification
 import coil.Coil
 import coil.request.Disposable
 import coil.request.ImageRequest
+import coil.request.Parameters
 import coil.size.Size
 import player.phonograph.R
-import player.phonograph.coil.target.PaletteTargetBuilder
+import player.phonograph.coil.PARAMETERS_KEY_PALETTE
+import player.phonograph.coil.palette.PaletteColorTarget
+import player.phonograph.model.PaletteBitmap
 import player.phonograph.model.Song
+import player.phonograph.util.theme.themeFooterColor
 import androidx.core.graphics.drawable.toBitmapOrNull
 import android.content.Context
 import android.graphics.Bitmap
@@ -25,11 +29,11 @@ import android.util.LruCache
  */
 class CoverLoader(private val context: Context) {
 
-    private val cache = LruCache<Long, Image>(4)
+    private val cache = LruCache<Long, PaletteBitmap>(4)
     private val loader = Coil.imageLoader(context)
 
     fun load(song: Song, callback: (Bitmap?, Int) -> Unit): Disposable? {
-        val cachedImage = cache[song.id]
+        val cachedImage: PaletteBitmap? = cache[song.id]
         if (cachedImage != null) {
             // cache hit
             callback(cachedImage.bitmap, cachedImage.paletteColor)
@@ -40,17 +44,19 @@ class CoverLoader(private val context: Context) {
                 ImageRequest.Builder(context)
                     .data(song)
                     .properSize()
+                    .parameters(Parameters.Builder().set(PARAMETERS_KEY_PALETTE, true).build())
                     .target(
-                        PaletteTargetBuilder(context)
-                            .onResourceReady { result, paletteColor ->
+                        PaletteColorTarget(
+                            defaultColor = themeFooterColor(context),
+                            success = { result, paletteColor ->
                                 val bitmap =
                                     if (result is BitmapDrawable) result.bitmap else result.toBitmapOrNull()
                                 if (bitmap != null) {
-                                    cache.put(song.id, Image(bitmap, paletteColor))
+                                    cache.put(song.id, PaletteBitmap(bitmap, paletteColor))
                                 }
                                 callback(bitmap, paletteColor)
-                            }
-                            .build()
+                            },
+                        )
                     )
                     .build()
             return loader.enqueue(imageRequest)
@@ -63,18 +69,7 @@ class CoverLoader(private val context: Context) {
      * size correct size
      */
     private fun ImageRequest.Builder.properSize(): ImageRequest.Builder {
-
-        when (Build.VERSION.SDK_INT) {
-            in VERSION_CODES.TIRAMISU until Int.MAX_VALUE -> {
-                // on Vanilla Android T (13), the large icon of media notification is background, so no limit there,
-                // add do not allow [albumArtOnLockscreen],
-                // so no operation
-            }
-            in  VERSION_CODES.BASE until VERSION_CODES.TIRAMISU -> {
-                // after Android R (11), [albumArtOnLockscreen] is invalid always
-                size(largeIconSize)
-            }
-        }
+        if (Build.VERSION.SDK_INT < VERSION_CODES.P) size(largeIconSize)
         return this
     }
 
@@ -94,6 +89,4 @@ class CoverLoader(private val context: Context) {
     fun terminate() {
         cache.evictAll()
     }
-
-    private data class Image(val bitmap: Bitmap, val paletteColor: Int)
 }

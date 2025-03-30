@@ -4,7 +4,7 @@
 
 package lib.phonograph.misc
 
-import mt.color.MaterialColor
+import util.theme.materials.MaterialColor
 import androidx.annotation.RequiresApi
 import android.content.Context
 import android.os.Build.VERSION_CODES.S
@@ -12,11 +12,9 @@ import android.os.Build.VERSION_CODES.S
 
 object ColorPalette {
 
-    const val MODE_PRIMARY_COLOR: Int = 1
-    const val MODE_ACCENT_COLOR: Int = 2
-
-    const val MODE_MONET_PRIMARY_COLOR: Int = 8
-    const val MODE_MONET_ACCENT_COLOR: Int = 16
+    enum class Variant {
+        Primary, Accent;
+    }
 
     //region Dynamic Colors
     @RequiresApi(S)

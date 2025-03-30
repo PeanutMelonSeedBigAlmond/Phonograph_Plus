@@ -5,6 +5,9 @@
 package player.phonograph.service.queue
 
 import player.phonograph.model.Song
+import player.phonograph.model.service.QueueObserver
+import player.phonograph.model.service.RepeatMode
+import player.phonograph.model.service.ShuffleMode
 import player.phonograph.service.MusicPlayerRemote
 import player.phonograph.util.recordThrowable
 import android.app.Application
@@ -132,9 +135,9 @@ class QueueManager(val context: Application) {
             return if (result >= playingQueue.size) -1 else result
         }
 
-    val currentSong: Song get() = queueHolder.getSongAt(currentSongPosition)
-    val previousSong: Song get() = queueHolder.getSongAt(previousSongPosition)
-    val nextSong: Song get() = queueHolder.getSongAt(nextSongPosition)
+    val currentSong: Song? get() = queueHolder.getSongAt(currentSongPosition)
+    val previousSong: Song? get() = queueHolder.getSongAt(previousSongPosition)
+    val nextSong: Song? get() = queueHolder.getSongAt(nextSongPosition)
 
     fun modifyPosition(
         newPosition: Int,
@@ -250,6 +253,19 @@ class QueueManager(val context: Application) {
     }
 
     /**
+     * remove missing songs
+     */
+    fun clean() {
+        handler.post {
+            val changed = queueHolder.clean(context)
+            if (changed) {
+                observerManager.notifyQueueChanged(queueHolder.playingQueue, queueHolder.originalPlayingQueue)
+                observerManager.notifyCurrentPositionChanged(queueHolder.currentSongPosition)
+            }
+        }
+    }
+
+    /**
      * for queue operations
      * detect queue changes and notify observers effectually
      */
@@ -279,7 +295,7 @@ class QueueManager(val context: Application) {
             snapShotsItemCount += queueHolder.playingQueue.size
             queueHolderSnapshots.add(0, queueHolder.clone())
             if (queueHolderSnapshots.size > 10 || snapShotsItemCount >= 150_000) {
-                val removed = queueHolderSnapshots.removeLast()
+                val removed = queueHolderSnapshots.removeAt(queueHolderSnapshots.lastIndex)
                 snapShotsItemCount -= removed.playingQueue.size
             }
         }
@@ -323,8 +339,8 @@ class QueueManager(val context: Application) {
 
     private inner class ObserverManager {
         private val observers: MutableList<QueueObserver> = ArrayList()
-        fun addObserver(observer: QueueObserver) = observers.add(observer)
-        fun removeObserver(observer: QueueObserver): Boolean = observers.remove(observer)
+        fun addObserver(observer: QueueObserver) = synchronized(observers) { observers.add(observer) }
+        fun removeObserver(observer: QueueObserver): Boolean = synchronized(observers) { observers.remove(observer) }
 
         fun notifyQueueChanged(newPlayingQueue: List<Song>, newOriginalQueue: List<Song>) =
             notifyAllObservers {
@@ -347,8 +363,10 @@ class QueueManager(val context: Application) {
             }
 
         private inline fun notifyAllObservers(block: QueueObserver.() -> Unit) {
-            for (observer in observers) {
-                block(observer)
+            synchronized(observers) {
+                for (observer in observers) {
+                    block(observer)
+                }
             }
         }
     }

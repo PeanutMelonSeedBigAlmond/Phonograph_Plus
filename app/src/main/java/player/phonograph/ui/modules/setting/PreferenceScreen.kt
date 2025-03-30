@@ -4,43 +4,44 @@
 
 package player.phonograph.ui.modules.setting
 
-import com.alorma.compose.settings.storage.base.SettingValueState
-import com.alorma.compose.settings.storage.base.rememberBooleanSettingState
-import com.alorma.compose.settings.storage.base.rememberIntSettingState
-import com.alorma.compose.settings.storage.datastore.rememberPreferenceDataStoreBooleanSettingState
-import com.alorma.compose.settings.ui.SettingsGroup
-import com.alorma.compose.settings.ui.SettingsListDropdown
-import com.alorma.compose.settings.ui.SettingsMenuLink
-import com.alorma.compose.settings.ui.SettingsSwitch
 import lib.phonograph.localization.LanguageSettingDialog
 import lib.phonograph.localization.LocalizationStore
-import lib.phonograph.misc.ColorChooser
 import lib.phonograph.misc.ColorPalette
-import mt.pref.ThemeColor
+import lib.phonograph.misc.rememberDataStoreBooleanState
+import lib.phonograph.preference.SettingValueState
+import lib.phonograph.preference.rememberBooleanSettingState
+import lib.phonograph.preference.rememberIntSettingState
+import lib.phonograph.preference.ui.SettingsGroup
+import lib.phonograph.preference.ui.SettingsListDropdown
+import lib.phonograph.preference.ui.SettingsMenuLink
+import lib.phonograph.preference.ui.SettingsSwitch
 import player.phonograph.App
 import player.phonograph.R
 import player.phonograph.appshortcuts.DynamicShortcutManager
+import player.phonograph.coil.cache.CacheStore
 import player.phonograph.mechanism.StatusBarLyric
-import player.phonograph.mechanism.setting.HomeTabConfig
-import player.phonograph.mechanism.setting.NowPlayingScreenConfig
-import player.phonograph.mechanism.setting.StyleConfig
-import player.phonograph.mechanism.setting.StyleConfig.THEME_AUTO
+import player.phonograph.model.pages.PagesConfig
 import player.phonograph.model.time.Duration
 import player.phonograph.model.time.TimeIntervalCalculationMode
 import player.phonograph.model.time.displayText
 import player.phonograph.settings.*
 import player.phonograph.ui.compose.components.ColorCircle
-import player.phonograph.ui.dialogs.CheckUpdateIntervalDialog
-import player.phonograph.ui.dialogs.ClickModeSettingDialog
-import player.phonograph.ui.dialogs.HomeTabConfigDialog
-import player.phonograph.ui.dialogs.ImageSourceConfigDialog
-import player.phonograph.ui.dialogs.LastAddedPlaylistIntervalDialog
-import player.phonograph.ui.dialogs.MonetColorPickerDialog
-import player.phonograph.ui.dialogs.NowPlayingScreenPreferenceDialog
-import player.phonograph.ui.dialogs.PathFilterDialog
+import player.phonograph.ui.modules.setting.dialog.CheckUpdateIntervalDialog
+import player.phonograph.ui.modules.setting.dialog.ClickModeSettingDialog
+import player.phonograph.ui.modules.setting.dialog.ExternalPlayRequestSettingDialog
+import player.phonograph.ui.modules.setting.dialog.HomeTabConfigDialog
+import player.phonograph.ui.modules.setting.dialog.ImageSourceConfigDialog
+import player.phonograph.ui.modules.setting.dialog.LastAddedPlaylistIntervalDialog
+import player.phonograph.ui.modules.setting.dialog.MaterialColorPickerDialog
+import player.phonograph.ui.modules.setting.dialog.MonetColorPickerDialog
+import player.phonograph.ui.modules.setting.dialog.NotificationActionsConfigDialog
+import player.phonograph.ui.modules.setting.dialog.NowPlayingScreenPreferenceDialog
+import player.phonograph.ui.modules.setting.dialog.PathFilterPreferenceDialog
 import player.phonograph.util.NavigationUtil
 import player.phonograph.util.reportError
+import player.phonograph.util.theme.tintButtons
 import player.phonograph.util.warning
+import androidx.activity.compose.LocalActivity
 import androidx.annotation.StringRes
 import androidx.appcompat.app.AlertDialog
 import androidx.compose.foundation.layout.Box
@@ -63,12 +64,14 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.fragment.app.DialogFragment
@@ -76,7 +79,6 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
-import android.app.Activity
 import android.content.Context
 import android.content.DialogInterface.OnDismissListener
 import android.content.Intent
@@ -114,7 +116,8 @@ fun PhonographPreferenceScreen() {
                     dialog = NowPlayingScreenPreferenceDialog::class.java,
                     titleRes = R.string.pref_title_player_style,
                     currentValueForHint = { context ->
-                        context.getString(NowPlayingScreenConfig.nowPlayingScreen.titleRes)
+                        val screen = Setting(context).Composites[Keys.nowPlayingScreen].flowData()
+                        context.getString(screen.titleRes)
                     }
                 ))
             LibraryCategoriesSetting()
@@ -136,34 +139,21 @@ fun PhonographPreferenceScreen() {
             if (SDK_INT >= S) MonetSetting()
             PrimaryColorPref()
             AccentColorPref()
-            ColoredNavigationBarSetting()
-            if (SDK_INT >= N_MR1) {
-                BooleanPref(
-                    key = COLORED_APP_SHORTCUTS,
-                    titleRes = R.string.pref_title_app_shortcuts,
-                    summaryRes = R.string.pref_summary_colored_app_shortcuts,
-                    defaultValue = true,
-                    onCheckedChange = {
-                        DynamicShortcutManager(App.instance).updateDynamicShortcuts()
-                    }
-                )
-            }
             GeneralThemeSetting()
+            if (SDK_INT >= N_MR1) ColoredAppShortcuts()
         }
 
         SettingsGroup(title = header(R.string.pref_header_content)) {
             DialogPref(
                 model = DialogPreferenceModel(
-                    dialog = PathFilterDialog::class.java,
+                    dialog = PathFilterPreferenceDialog::class.java,
                     titleRes = R.string.path_filter,
                     currentValueForHint = { context ->
                         with(context) {
                             val preference = Setting(context)[Keys.pathFilterExcludeMode]
-                            if (preference.data) {
-                                "${getString(R.string.path_filter_excluded_mode)} - \n${getString(R.string.pref_summary_path_filter_excluded_mode)}"
-                            } else {
-                                "${getString(R.string.path_filter_included_mode)} - \n${getString(R.string.pref_summary_path_filter_included_mode)}"
-                            }
+                            getString(
+                                if (preference.data) R.string.path_filter_excluded_mode else R.string.path_filter_included_mode
+                            )
                         }
                     }
                 )
@@ -202,10 +192,28 @@ fun PhonographPreferenceScreen() {
             )
             DialogPref(
                 model = DialogPreferenceModel(
+                    dialog = ExternalPlayRequestSettingDialog::class.java,
+                    titleRes = R.string.pref_title_external_play_request,
+                    summaryRes = R.string.pref_summary_external_play_request,
+                )
+            )
+            DialogPref(
+                model = DialogPreferenceModel(
                     dialog = ImageSourceConfigDialog::class.java,
                     titleRes = R.string.image_source_config,
                 )
             )
+            BooleanPref(
+                key = IMAGE_CACHE,
+                summaryRes = R.string.pref_summary_image_cache,
+                titleRes = R.string.pref_title_image_cache,
+                defaultValue = false
+            )
+            SettingsMenuLink(
+                title = title(R.string.clear_image_cache)
+            ) {
+                CacheStore.clear(App.instance)
+            }
         }
 
 
@@ -222,6 +230,12 @@ fun PhonographPreferenceScreen() {
                 key = RESUME_AFTER_AUDIO_FOCUS_GAIN,
                 summaryRes = R.string.pref_summary_resume_after_audio_focus_gain,
                 titleRes = R.string.pref_title_resume_after_audio_focus_gain,
+                defaultValue = false,
+            )
+            BooleanPref(
+                key = ALWAYS_PLAY,
+                summaryRes = R.string.pref_summary_always_play,
+                titleRes = R.string.pref_title_always_play,
                 defaultValue = false,
             )
             BooleanPref(
@@ -243,6 +257,12 @@ fun PhonographPreferenceScreen() {
         SettingsGroup(
             title = header(R.string.pref_header_notification)
         ) {
+            BooleanPref(
+                key = PERSISTENT_PLAYBACK_NOTIFICATION,
+                titleRes = R.string.pref_title_persistent_playback_notification,
+                summaryRes = R.string.pref_summary_persistent_playback_notification,
+                defaultValue = false
+            )
             // noinspection ObsoleteSdkInt
             if (SDK_INT >= N) BooleanPref(
                 key = CLASSIC_NOTIFICATION,
@@ -256,6 +276,13 @@ fun PhonographPreferenceScreen() {
                 summaryRes = R.string.pref_summary_colored_notification,
                 defaultValue = true,
                 enabled = dependOn(CLASSIC_NOTIFICATION),
+            )
+            DialogPref(
+                model = DialogPreferenceModel(
+                    dialog = NotificationActionsConfigDialog::class.java,
+                    titleRes = R.string.pref_title_notification_actions,
+                    summaryRes = R.string.pref_summary_notification_actions,
+                )
             )
         }
 
@@ -286,7 +313,7 @@ fun PhonographPreferenceScreen() {
                 defaultValue = true,
             )
             BooleanPref(
-                key = DISPLAY_LYRICS_TIME_AXIS,
+                key = BROADCAST_SYNCHRONIZED_LYRICS,
                 titleRes = R.string.pref_title_send_lyrics,
                 summaryRes = R.string.pref_summary_send_lyrics,
                 defaultValue = false,
@@ -294,6 +321,12 @@ fun PhonographPreferenceScreen() {
         }
 
         SettingsGroup(title = header(R.string.pref_header_compatibility)) {
+            BooleanPref(
+                key = ALWAYS_USE_MEDIA_SESSION_TO_DISPLAY_COVER,
+                titleRes = R.string.pref_title_always_use_media_session_to_display_cover,
+                summaryRes = R.string.pref_summary_always_use_media_session_to_display_cover,
+                defaultValue = false,
+            )
             BooleanPref(
                 key = USE_LEGACY_FAVORITE_PLAYLIST_IMPL,
                 titleRes = R.string.pref_title_use_legacy_favorite_playlist_impl,
@@ -312,47 +345,25 @@ fun PhonographPreferenceScreen() {
                 defaultValue = false,
             )
             BooleanPref(
-                key = USE_LEGACY_DETAIL_DIALOG,
-                titleRes = R.string.pref_title_use_legacy_detail_dialog,
-                summaryRes = R.string.pref_summary_use_legacy_detail_dialog,
-                defaultValue = false,
-            )
-            BooleanPref(
                 key = DISABLE_REAL_TIME_SEARCH,
                 titleRes = R.string.pref_title_disable_real_time_search,
                 summaryRes = R.string.pref_summary_disable_real_time_search,
                 defaultValue = false,
             )
-            ListPref(
-                titleRes = R.string.pref_title_playlist_files_operation_behaviour,
-                summaryRes = R.string.pref_summary_playlist_files_operation_behaviour,
-                options = OptionGroupModel(
-                    PLAYLIST_FILES_OPERATION_BEHAVIOUR,
-                    listOf(
-                        PLAYLIST_OPS_BEHAVIOUR_AUTO,
-                        PLAYLIST_OPS_BEHAVIOUR_FORCE_SAF,
-                        PLAYLIST_OPS_BEHAVIOUR_FORCE_LEGACY,
-                    ),
-                    listOf(
-                        R.string.behaviour_auto,
-                        R.string.behaviour_force_saf,
-                        R.string.behaviour_force_legacy,
-                    )
-                )
-            )
         }
 
-        SettingsGroup(title = header(R.string.check_upgrade)) {
+        SettingsGroup(title = header(R.string.check_for_updates)) {
             BooleanPref(
                 key = CHECK_UPGRADE_AT_STARTUP,
-                titleRes = R.string.auto_check_upgrade,
-                summaryRes = R.string.auto_check_upgrade_summary,
+                titleRes = R.string.pref_title_auto_check_for_updates,
+                summaryRes = R.string.pref_summary_auto_check_for_updates,
                 defaultValue = false,
             )
             DialogPref(
                 model = DialogPreferenceModel(
                     CheckUpdateIntervalDialog::class.java,
-                    R.string.pref_title_check_upgrade_interval,
+                    titleRes = R.string.pref_title_check_for_updates_interval,
+                    summaryRes = R.string.pref_summary_check_for_updates_interval
                 ) {
                     val resources = it.resources
                     val preference = Setting(it).Composites[Keys.checkUpdateInterval]
@@ -390,9 +401,11 @@ private fun LibraryCategoriesSetting() {
                             "${context.getString(R.string.pref_summary_reset_home_pages_tab_config)}\n" +
                                     "${context.getString(R.string.are_you_sure)}\n"
                         )
-                        .setPositiveButton(android.R.string.ok) { _, _ -> HomeTabConfig.resetHomeTabConfig() }
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            Setting(context).Composites[Keys.homeTabConfig].data = PagesConfig.DEFAULT_CONFIG
+                        }
                         .setNegativeButton(android.R.string.cancel) { _, _ -> }
-                        .show()
+                        .show().tintButtons()
                 },
                 content = {
                     Icon(
@@ -408,87 +421,74 @@ private fun LibraryCategoriesSetting() {
 
 @Composable
 private fun GeneralThemeSetting() {
-
-    class GeneralThemeState(val context: Context) : SettingValueState<Int> {
-
-        override var value: Int
-            get() = StyleConfig.values.indexOf(StyleConfig.generalTheme(context))
-            set(value) {
-                StyleConfig.setGeneralTheme(context, StyleConfig.values[value])
-            }
-
-        override fun reset() {
-            StyleConfig.setGeneralTheme(context, THEME_AUTO)
-        }
-    }
-
+    val themeValues: List<String> = listOf(
+        THEME_AUTO_LIGHTBLACK,
+        THEME_AUTO_LIGHTDARK,
+        THEME_LIGHT,
+        THEME_BLACK,
+        THEME_DARK,
+    )
+    val themeNames: List<Int> = listOf(
+        R.string.theme_name_auto_lightblack,
+        R.string.theme_name_auto_lightdark,
+        R.string.theme_name_light,
+        R.string.theme_name_black,
+        R.string.theme_name_dark,
+    )
     val context = LocalContext.current
-
-    ListPrefImpl(
+    ListPref(
+        options = OptionGroupModel(THEME, themeValues, themeNames),
         titleRes = R.string.pref_title_general_theme,
-        items = remember { StyleConfig.names(context) },
-        state = GeneralThemeState(context),
-        onItemSelected = { _, _ ->
-            (context as? Activity)?.recreate()
+        onChange = { _, _ ->
+            ThemeSetting.updateThemeStyle(context)
         }
     )
 }
 
 @Composable
 private fun PrimaryColorPref() {
-    val context = LocalContext.current
-    val mode = remember {
-        if (SDK_INT >= S && ThemeColor.enableMonet(context)) ColorPalette.MODE_MONET_PRIMARY_COLOR
-        else ColorPalette.MODE_PRIMARY_COLOR
-    }
-    ColorPrefImpl(
+    ColorPref(
         titleRes = R.string.primary_color,
         summaryRes = R.string.primary_color_desc,
-        mode = mode
+        ColorPalette.Variant.Primary
     )
 }
 @Composable
 private fun AccentColorPref() {
-    val context = LocalContext.current
-    val mode = remember {
-        if (SDK_INT >= S && ThemeColor.enableMonet(context)) ColorPalette.MODE_MONET_ACCENT_COLOR
-        else ColorPalette.MODE_ACCENT_COLOR
-    }
-    ColorPrefImpl(
+    ColorPref(
         titleRes = R.string.accent_color,
         summaryRes = R.string.accent_color_desc,
-        mode = mode
+        ColorPalette.Variant.Accent
     )
+}
+
+@Composable
+private fun ColorPref(
+    @StringRes titleRes: Int,
+    @StringRes summaryRes: Int,
+    variant: ColorPalette.Variant,
+) {
+    val color = when (variant) {
+        ColorPalette.Variant.Primary -> MaterialTheme.colors.primary
+        ColorPalette.Variant.Accent  -> MaterialTheme.colors.secondary
+    }
+    val context = LocalContext.current
+    ColorPrefImpl(titleRes, summaryRes, color) {
+        if (SDK_INT >= S && Setting(context)[Keys.enableMonet].data) {
+            MonetColorPickerDialog.showColorChooserDialog(context, variant)
+        } else {
+            MaterialColorPickerDialog.showColorChooserDialog(context, color.toArgb(), variant)
+        }
+    }
 }
 
 @Composable
 private fun ColorPrefImpl(
     @StringRes titleRes: Int,
     @StringRes summaryRes: Int,
-    mode: Int,
+    color: Color,
+    onClick: () -> Unit,
 ) {
-    val context = LocalContext.current
-
-    val color =
-        when (mode) {
-            ColorPalette.MODE_PRIMARY_COLOR, ColorPalette.MODE_MONET_PRIMARY_COLOR -> MaterialTheme.colors.primary
-            ColorPalette.MODE_ACCENT_COLOR, ColorPalette.MODE_MONET_ACCENT_COLOR   -> MaterialTheme.colors.secondary
-            else                                                                   -> MaterialTheme.colors.error
-        }
-
-    val onClick = {
-        when (mode) {
-            ColorPalette.MODE_PRIMARY_COLOR, ColorPalette.MODE_ACCENT_COLOR ->
-                ColorChooser.showColorChooserDialog(context, color.toArgb(), mode)
-
-            ColorPalette.MODE_MONET_PRIMARY_COLOR                           ->
-                MonetColorPickerDialog.primaryColor().show((context as FragmentActivity).supportFragmentManager, null)
-
-            ColorPalette.MODE_MONET_ACCENT_COLOR                            ->
-                MonetColorPickerDialog.accentColor().show((context as FragmentActivity).supportFragmentManager, null)
-        }
-    }
-
     SettingsMenuLink(
         title = title(titleRes),
         subtitle = subtitle(summaryRes),
@@ -499,84 +499,33 @@ private fun ColorPrefImpl(
 
 @Composable
 private fun MonetSetting() {
-    class MonetSettingValueState(val context: Context) : SettingValueState<Boolean> {
-        private val _state = mutableStateOf(ThemeColor.enableMonet(context))
-        override var value: Boolean
-            get() = _state.value
-            set(value) {
-                _state.value = value
-                ThemeColor.edit(context) {
-                    enableMonet(value)
-                }
-            }
-
-        override fun reset() {
-            value = true
-        }
-
-    }
-
-    val context = LocalContext.current
-
-    val booleanState =
-        if (LocalInspectionMode.current) {
-            rememberBooleanSettingState(false)
-        } else {
-            MonetSettingValueState(context)
-        }
-
-
-    BooleanPrefImpl(
+    BooleanPref(
+        key = ENABLE_MONET,
         titleRes = R.string.pref_title_enable_monet,
         summaryRes = R.string.pref_summary_enable_monet,
-        state = booleanState,
+        defaultValue = false,
         onCheckedChange = {
-            DynamicShortcutManager(context).updateDynamicShortcuts()
-            (context as? Activity)?.recreate()
+            if (SDK_INT >= N_MR1) DynamicShortcutManager(App.instance).updateDynamicShortcuts()
         }
     )
 }
 
 @Composable
-private fun ColoredNavigationBarSetting() {
-    class ColoredNavigationBarSettingValueState(val context: Context) : SettingValueState<Boolean> {
-        private val _state = mutableStateOf(ThemeColor.coloredNavigationBar(context))
-        override var value: Boolean
-            get() = _state.value
-            set(value) {
-                _state.value = value
-                ThemeColor.edit(context) {
-                    coloredNavigationBar(value)
-                }
-            }
-
-        override fun reset() {
-            value = true
-        }
-    }
-
-    val booleanState =
-        if (LocalInspectionMode.current) {
-            rememberBooleanSettingState(false)
-        } else {
-            ColoredNavigationBarSettingValueState(LocalContext.current)
-        }
-
-    val context = LocalContext.current
-
-    BooleanPrefImpl(
-        titleRes = R.string.pref_title_navigation_bar,
-        summaryRes = R.string.pref_summary_colored_navigation_bar,
-        state = booleanState,
+private fun ColoredAppShortcuts() {
+    BooleanPref(
+        key = COLORED_APP_SHORTCUTS,
+        titleRes = R.string.pref_title_app_shortcuts,
+        summaryRes = R.string.pref_summary_colored_app_shortcuts,
+        defaultValue = true,
         onCheckedChange = {
-            (context as? Activity)?.recreate()
+            if (SDK_INT >= N_MR1) DynamicShortcutManager(App.instance).updateDynamicShortcuts()
         }
     )
 }
 
 @Composable
 private fun EqualizerSetting() {
-    val activity = if (!LocalInspectionMode.current) LocalContext.current as? Activity else null
+    val activity = if (!LocalInspectionMode.current) LocalActivity.current else null
 
     val hasEqualizer = remember { mutableStateOf(false) }
     if (!LocalInspectionMode.current) {
@@ -629,9 +578,9 @@ private fun BooleanPref(
         if (LocalInspectionMode.current) {
             rememberBooleanSettingState(true)
         } else {
-            rememberPreferenceDataStoreBooleanSettingState(
-                key = key,
-                dataStore = LocalContext.current.dataStore,
+            rememberDataStoreBooleanState(
+                key = booleanPreferencesKey(key),
+                dataStore = Setting.settingsDatastore(LocalContext.current),
                 defaultValue = defaultValue
             )
         }
@@ -715,6 +664,7 @@ internal class DialogPreferenceModel(
 }
 
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun ListPref(
     options: OptionGroupModel,
     @StringRes titleRes: Int,
@@ -802,7 +752,7 @@ internal class OptionGroupModel(
         }
 
     private suspend fun read(context: Context): Int {
-        val value = context.dataStore.data.first()[stringPreferencesKey(key)]
+        val value = Setting.settingsDatastore(context).data.first()[stringPreferencesKey(key)]
         val index = optionsValue.indexOf(value)
         return if (index > -1) {
             index
@@ -817,7 +767,7 @@ internal class OptionGroupModel(
     }
 
     suspend fun save(context: Context, index: Int) {
-        context.dataStore.edit { preferences ->
+        Setting.settingsDatastore(context).edit { preferences ->
             val newValue = optionsValue.getOrElse(index) { optionsValue[defaultValueIndex] }
             preferences[stringPreferencesKey(key)] = newValue
         }
@@ -832,8 +782,8 @@ private fun dependOn(key: String, required: Boolean = true): Boolean {
     return if (LocalInspectionMode.current) {
         false
     } else {
-        val datastore = LocalContext.current.dataStore
-        rememberPreferenceDataStoreBooleanSettingState(key = key, dataStore = datastore).value == required
+        val datastore = Setting.settingsDatastore(LocalContext.current)
+        rememberDataStoreBooleanState(key = booleanPreferencesKey(key), dataStore = datastore).value == required
     }
 }
 

@@ -145,6 +145,19 @@
 -keepclassmembernames class androidx.appcompat.widget.SearchView { android.widget.ImageView mGoButton;}
 -keepclassmembernames class androidx.appcompat.widget.SearchView { android.widget.ImageView mCloseButton;}
 -keepclassmembernames class androidx.appcompat.widget.SearchView { android.widget.ImageView mVoiceButton;}
+# we use reflect to modify the colors
+-keep class androidx.appcompat.widget.ActionMenuPresenter$OverflowPopup
+-keep class androidx.appcompat.widget.ActionMenuPresenter$ActionButtonSubmenu
+-keepclasseswithmembernames class androidx.appcompat.widget.ActionMenuPresenter {
+    androidx.appcompat.widget.ActionMenuPresenter$OverflowPopup mOverflowPopup;
+    androidx.appcompat.widget.ActionMenuPresenter$ActionButtonSubmenu mActionButtonPopup;
+}
+-keepclassmembernames class androidx.appcompat.widget.ActionMenuView {
+    androidx.appcompat.widget.ActionMenuPresenter mPresenter;
+}
+-keepclassmembernames class androidx.appcompat.widget.Toolbar {
+    androidx.appcompat.widget.ActionMenuView mMenuView;
+}
 
 ##########################
 # Material Design Componant
@@ -234,4 +247,5 @@
 # StatusBarLyric API
 ####################
 -keep class StatusBarLyric.API.StatusBarLyric {*;}
--keep class cn.lyric.getter.api.tools.EventTools{*;}
+-keep class cn.lyric.getter.api.API {*;}
+-keep class cn.lyric.getter.api.data.ExtraData {*;}

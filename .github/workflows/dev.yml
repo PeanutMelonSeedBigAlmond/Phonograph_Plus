@@ -11,12 +11,14 @@ on:
     paths-ignore:
       - '.github/**'
       - '.idea/**'
-      - 'crowdin.yml'
+      - 'docs/**'
       - 'fastlane/metadata/android/**'
-      - 'tools/**'
+      - 'tools/changelog-generator/**'
+      - 'crowdin.yml'
       - 'fdroid.properties'
       - '*.json'
       - '**.md'
+      - 'ReleaseNote*'
   workflow_dispatch:
   pull_request:
     branches:
@@ -25,39 +27,32 @@ on:
     paths-ignore:
       - '.github/**'
       - '.idea/**'
-      - 'crowdin.yml'
-      - 'fastlane/metadata/android/**'
-      - 'tools/**'
-      - 'fdroid.properties'
-      - '*.json'
       - '**.md'
 
 jobs:
   build:
-    name: Build Dev CI
-    runs-on: ubuntu-20.04
+    # Matrix builds
+    name: "Dev Ci"
+    strategy:
+      matrix:
+        PRODUCT_VARIANT: [ModernCheckoutDebug, LegacyCheckoutDebug]
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'adopt'
           cache: gradle
 
       - name: Set up Gradle
-        uses: gradle/gradle-build-action@v2.4.2
+        uses: gradle/actions/setup-gradle@v3
 
-      - name: Prepare Gradlew
-        # just download gradle wrapper, start gradle daemon and prepare composing builds, make actual build logs clean
-        run: |
-          ./gradlew
-
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
 
       - name: Generate Sign Config
         env:
@@ -70,15 +65,13 @@ jobs:
         run: |
           bash ${{ github.workspace }}/scripts/generate_signing_key.sh
 
-
-      - name: Build with Gradle (Assemble CheckoutDebug)
+      - name: Build with Gradle
         run: |
-          ./gradlew assembleCheckoutDebug --stacktrace --parallel
+          ./gradlew assemble${{ matrix.PRODUCT_VARIANT }} --stacktrace
 
       - name: Upload APK
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: dev
+          name: Artifacts_${{ matrix.PRODUCT_VARIANT }}
           path: ./app/build/outputs/apk/*/debug/*.apk
           retention-days: 3
-

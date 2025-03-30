@@ -1,17 +1,29 @@
-version: "1.4.2"
-versionCode: 1042
-timestamp: 1701497000
-channel: "STABLE"
+version: "1.10.0-dev1"
+channel: "PREVIEW"
+versionCode: 1094
+timestamp: 1742990000
 notes:
   en:
     highlights: [ ]
     items:
-      - "Fix: frozen (and then crash) when skipping to previous or next if repeat mode is single-repeated and queue has only one song"
-      - "Fix: reporting error at two ends of queue when skipping to previous or next"
-      - "Fix: rarely incorrect previous song when skipping to previous if repeat mode is queue-repeated"
+      - "Fix: occasionally incorrect folder content after changing sort order in Folders Page"
+      - "Fix: crash when loading lyric for nonexistent file"
+      - "Remove: preference Preload Images"
+      - "Modify: replace icon for display page settings"
+      - "Improvement: improve performance of image loading"
+      - "Improvement: support custom grid size and layout for Folders Page"
+      - "Development: cleanup codes"
+
   zh:
     highlights: [ ]
     items:
-      - "修复 使用单曲重复且队列仅有一首歌曲时在切歌时卡死(然后崩溃)"
-      - "修复 处在队列两端时切歌时误报错"
-      - "修复 使用队列重复时偶尔会出现不正确的上一首歌曲"
+      - "修复 在文件夹页面中更改排序顺序后偶尔内容不正确"
+      - "修复 加载不存在的文件歌词时崩溃"
+      - "移除 选项 图片预加载"
+      - "修改 页码显示设置显示图标"
+      - "改进 提高图像加载性能"
+      - "改进 支持文件夹页面的自定义网格大小和布局"
+      - "开发 清理代码"
+
+previousVersion: "1.9.3"
+previousChannel: "STABLE"

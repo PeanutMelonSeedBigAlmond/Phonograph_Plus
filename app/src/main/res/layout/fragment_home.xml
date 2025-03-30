@@ -18,7 +18,7 @@
 
             <androidx.appcompat.widget.Toolbar
                 android:id="@+id/toolbar"
-                style="@style/Toolbar"
+                style="@style/Widget.Phonograph.Toolbar"
                 android:elevation="0dp"
                 tools:ignore="UnusedAttribute">
 
@@ -36,6 +36,9 @@
             android:layout_width="match_parent"
             android:layout_height="@dimen/tab_height"
             app:tabContentStart="72dp"
+            app:tabPaddingStart="8dp"
+            app:tabPaddingEnd="8dp"
+            app:tabMinWidth="80dp"
             tools:ignore="SpeakableTextPresentCheck" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -44,6 +47,7 @@
         android:id="@+id/pager"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:orientation="horizontal"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:ignore="SpeakableTextPresentCheck" />
 

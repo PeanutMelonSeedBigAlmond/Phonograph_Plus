@@ -4,39 +4,58 @@
 
 package player.phonograph.settings
 
+import androidx.annotation.StringDef
+
 
 //region Keys
 
 // Appearance
+const val THEME = "theme"
+
 const val HOME_TAB_CONFIG = "home_tab_config"
-const val COLORED_NOTIFICATION = "colored_notification"
-const val CLASSIC_NOTIFICATION = "classic_notification"
 const val COLORED_APP_SHORTCUTS = "colored_app_shortcuts"
 const val FIXED_TAB_LAYOUT = "fixed_tab_layout"
+
+const val ENABLE_MONET = "enable_monet"
+const val SELECTED_PRIMARY_COLOR = "primary_color_selected"
+const val SELECTED_ACCENT_COLOR = "accent_color_selected"
+const val MONET_PALETTE_PRIMARY_COLOR = "primary_color_monet_palette"
+const val MONET_PALETTE_ACCENT_COLOR = "accent_color_monet_palette"
+
+// Appearance - Notification
+const val COLORED_NOTIFICATION = "colored_notification"
+const val CLASSIC_NOTIFICATION = "classic_notification"
+const val NOTIFICATION_ACTIONS = "notification_actions"
 
 // Behavior-Retention
 const val REMEMBER_LAST_TAB = "remember_last_tab"
 const val LAST_PAGE = "last_start_page"
-const val LAST_MUSIC_CHOOSER = "last_music_chooser"
 const val NOW_PLAYING_SCREEN_ID = "now_playing_screen_id"
 
 // Database
 
 // Behavior-File
+const val START_DIRECTORY = "start_directory"
+const val PRELOAD_IMAGES = "preload_images"
 const val IMAGE_SOURCE_CONFIG = "image_source_config"
+const val IMAGE_CACHE = "image_cache"
 
 // Behavior-Playing
 const val SONG_ITEM_CLICK_MODE = "song_item_click_extra_flag"
 const val SONG_ITEM_CLICK_EXTRA_FLAG = "song_item_click_extra_mode"
-const val KEEP_PLAYING_QUEUE_INTACT = "keep_playing_queue_intact"
-const val REMEMBER_SHUFFLE = "remember_shuffle"
+const val EXTERNAL_PLAY_REQUEST_SHOW_PROMPT = "external_play_request_show_prompt"
+const val EXTERNAL_PLAY_REQUEST_SINGLE_MODE = "external_play_request_single_mode"
+const val EXTERNAL_PLAY_REQUEST_MULTIPLE_MODE = "external_play_request_multiple_mode"
+const val EXTERNAL_PLAY_REQUEST_SILENCE = "external_play_request_silence"
 const val AUDIO_DUCKING = "audio_ducking"
 const val RESUME_AFTER_AUDIO_FOCUS_GAIN = "resume_after_audio_focus_gain"
+const val ALWAYS_PLAY = "always_play"
 const val GAPLESS_PLAYBACK = "gapless_playback"
 const val ENABLE_LYRICS = "enable_lyrics"
 const val BROADCAST_SYNCHRONIZED_LYRICS = "synchronized_lyrics_send"
 const val USE_LEGACY_STATUS_BAR_LYRICS_API = "use_legacy_status_bar_lyrics_api"
 const val BROADCAST_CURRENT_PLAYER_STATE = "broadcast_current_player_state"
+const val PERSISTENT_PLAYBACK_NOTIFICATION = "persistent_playback_notification"
 
 // Behavior-Lyrics
 const val SYNCHRONIZED_LYRICS_SHOW = "synchronized_lyrics_show"
@@ -77,6 +96,8 @@ const val ALBUM_ITEM_LAYOUT = "album_item_layout"
 const val ALBUM_ITEM_LAYOUT_LAND = "album_item_layout_land"
 const val ARTIST_ITEM_LAYOUT = "artist_item_layout"
 const val ARTIST_ITEM_LAYOUT_LAND = "artist_item_layout_land"
+const val FOLDER_ITEM_LAYOUT = "folder_item_layout"
+const val FOLDER_ITEM_LAYOUT_LAND = "folder_item_layout_land"
 
 const val ALBUM_GRID_SIZE = "album_grid_size"
 const val ALBUM_GRID_SIZE_LAND = "album_grid_size_land"
@@ -88,6 +109,8 @@ const val GENRE_GRID_SIZE = "genre_grid_size"
 const val GENRE_GRID_SIZE_LAND = "genre_grid_size_land"
 const val PLAYLIST_GRID_SIZE = "playlist_grid_size"
 const val PLAYLIST_GRID_SIZE_LAND = "playlist_grid_size_land"
+const val FOLDER_GRID_SIZE = "folder_grid_size"
+const val FOLDER_GRID_SIZE_LAND = "folder_grid_size_land"
 
 
 // SleepTimer
@@ -100,27 +123,13 @@ const val IGNORE_UPGRADE_DATE = "ignore_upgrade_date"
 const val PATH_FILTER_EXCLUDE_MODE = "path_filter_exclude_mode"
 
 // compatibility
+const val ALWAYS_USE_MEDIA_SESSION_TO_DISPLAY_COVER = "always_use_media_session_to_display_cover"
 const val USE_LEGACY_FAVORITE_PLAYLIST_IMPL = "use_legacy_favorite_playlist_impl"
 const val USE_LEGACY_LIST_FILES_IMPL = "use_legacy_list_files_impl"
-const val PLAYLIST_FILES_OPERATION_BEHAVIOUR = "playlist_files_operation_behaviour"
-const val USE_LEGACY_DETAIL_DIALOG = "use_legacy_detail_dialog"
 const val DISABLE_REAL_TIME_SEARCH = "disable_real_time_search"
 
 // unused & deprecated
 
-const val LEGACY_LAST_ADDED_CUTOFF = "last_added_interval"
-const val INTERVAL_TODAY = "today"
-const val INTERVAL_PAST_SEVEN_DAYS = "past_seven_days"
-const val INTERVAL_PAST_FOURTEEN_DAYS = "past_fourteen_days"
-const val INTERVAL_PAST_ONE_MONTH = "past_one_month"
-const val INTERVAL_PAST_THREE_MONTHS = "past_three_months"
-const val INTERVAL_THIS_WEEK = "this_week"
-const val INTERVAL_THIS_MONTH = "this_month"
-const val INTERVAL_THIS_YEAR = "this_year"
-const val AUTO_DOWNLOAD_IMAGES_POLICY = "auto_download_images_policy"
-const val DOWNLOAD_IMAGES_POLICY_ALWAYS = "always"
-const val DOWNLOAD_IMAGES_POLICY_ONLY_WIFI = "only_wifi"
-const val DOWNLOAD_IMAGES_POLICY_NEVER = "never"
 const val INITIALIZED_BLACKLIST = "initialized_blacklist"
 const val PREVIOUS_VERSION = "last_changelog_version"
 const val FORCE_SQUARE_ALBUM_COVER = "force_square_album_art"
@@ -133,4 +142,14 @@ const val IGNORE_MEDIA_STORE_ARTWORK = "ignore_media_store_artwork"
 const val PLAYLIST_OPS_BEHAVIOUR_AUTO = "auto"
 const val PLAYLIST_OPS_BEHAVIOUR_FORCE_SAF = "force_saf"
 const val PLAYLIST_OPS_BEHAVIOUR_FORCE_LEGACY = "force_legacy"
+// Theme
+const val THEME_AUTO_LIGHTBLACK = "auto_lightblack"
+const val THEME_AUTO_LIGHTDARK = "auto_lightdark"
+const val THEME_LIGHT = "light"
+const val THEME_BLACK = "black"
+const val THEME_DARK = "dark"
+
+@StringDef(THEME_AUTO_LIGHTBLACK, THEME_AUTO_LIGHTDARK, THEME_LIGHT, THEME_BLACK, THEME_DARK)
+@Retention(AnnotationRetention.SOURCE)
+annotation class GeneralTheme
 //endregion

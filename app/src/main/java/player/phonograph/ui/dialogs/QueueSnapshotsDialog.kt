@@ -10,14 +10,15 @@ import com.vanpra.composematerialdialogs.rememberMaterialDialogState
 import com.vanpra.composematerialdialogs.title
 import org.koin.android.ext.android.inject
 import player.phonograph.R
-import player.phonograph.model.songCountString
+import player.phonograph.model.service.RepeatMode
+import player.phonograph.model.service.ShuffleMode
 import player.phonograph.service.queue.QueueHolder
 import player.phonograph.service.queue.QueueManager
-import player.phonograph.service.queue.RepeatMode
-import player.phonograph.service.queue.ShuffleMode
-import player.phonograph.ui.compose.BridgeDialogFragment
+import player.phonograph.ui.compose.ComposeViewDialogFragment
 import player.phonograph.ui.compose.PhonographTheme
+import player.phonograph.util.text.songCountString
 import player.phonograph.util.text.timeText
+import player.phonograph.util.theme.accentColoredButtonStyle
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.content.Context
 
-class QueueSnapshotsDialog : BridgeDialogFragment() {
+class QueueSnapshotsDialog : ComposeViewDialogFragment() {
 
     private val queueManager: QueueManager by inject()
 
@@ -53,7 +54,10 @@ class QueueSnapshotsDialog : BridgeDialogFragment() {
                 elevation = 0.dp,
                 onCloseRequest = { dismiss() },
                 buttons = {
-                    button(res = android.R.string.ok) { dismiss() }
+                    positiveButton(
+                        res = android.R.string.ok,
+                        textStyle = accentColoredButtonStyle()
+                    ) { dismiss() }
                 }
             ) {
                 title(res = R.string.playing_queue_history)
@@ -71,10 +75,10 @@ class QueueSnapshotsDialog : BridgeDialogFragment() {
 
 
 @Composable
-fun QueueSnapshotsDialogContent(
+private fun QueueSnapshotsDialogContent(
     context: Context,
     queueManager: QueueManager,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
 ) {
     val snapShots = remember {
         queueManager.getQueueSnapShots()
@@ -108,9 +112,9 @@ fun QueueSnapshotsDialogContent(
 private fun Snapshot(context: Context, queueHolder: QueueHolder, onClick: () -> Unit) {
     Card(
         Modifier
-        .clickable { onClick() }
-        .fillMaxWidth()
-        .padding(4.dp)) {
+            .clickable { onClick() }
+            .fillMaxWidth()
+            .padding(4.dp)) {
         Column(
             Modifier.padding(12.dp)
         ) {
@@ -121,17 +125,19 @@ private fun Snapshot(context: Context, queueHolder: QueueHolder, onClick: () -> 
                 Text(text = " (${queueHolder.currentSongPosition + 1})")
                 Spacer(modifier = Modifier.widthIn(16.dp))
                 when (queueHolder.repeatMode) {
-                    RepeatMode.REPEAT_QUEUE       ->
+                    RepeatMode.REPEAT_QUEUE ->
                         Icon(
                             painter = painterResource(id = R.drawable.ic_repeat_white_24dp),
                             contentDescription = null
                         )
+
                     RepeatMode.REPEAT_SINGLE_SONG ->
                         Icon(
                             painter = painterResource(id = R.drawable.ic_repeat_one_white_24dp),
                             contentDescription = null
                         )
-                    else                          -> {}
+
+                    else -> {}
                 }
                 when (queueHolder.shuffleMode) {
                     ShuffleMode.SHUFFLE -> {
@@ -140,6 +146,7 @@ private fun Snapshot(context: Context, queueHolder: QueueHolder, onClick: () -> 
                             contentDescription = context.getString(R.string.pref_title_remember_shuffle)
                         )
                     }
+
                     else                -> {}
                 }
             }

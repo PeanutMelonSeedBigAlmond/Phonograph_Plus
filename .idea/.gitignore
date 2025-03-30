@@ -1,22 +1,13 @@
-# Default ignored files
-/shelf/
-/workspace.xml
+/caches
+/modules
+/shelf
 
-#
-/modules/
-/libraries/
-/copyright/
-
-gradle.xml
-jarRepositories.xml
-kotlinc.xml
-kotlinScripting.xml
-modules.xml
-render.experimental.xml
-vcs.xml
-misc.xml
-workspace.xml
 compiler.xml
 deploymentTargetDropDown.xml
-
-
+deploymentTargetSelector.xml
+gradle.xml
+kotlinc.xml
+misc.xml
+runConfigurations.xml
+vcs.xml
+workspace.xml

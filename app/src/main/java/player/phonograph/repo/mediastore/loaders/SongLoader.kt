@@ -1,11 +1,10 @@
 /*
- *  Copyright (c) 2022~2023 chr_56
+ *  Copyright (c) 2022~2025 chr_56
  */
 
 package player.phonograph.repo.mediastore.loaders
 
 import player.phonograph.model.Song
-import player.phonograph.model.file.FileEntity
 import player.phonograph.repo.mediastore.internal.intoFirstSong
 import player.phonograph.repo.mediastore.internal.intoSongs
 import player.phonograph.repo.mediastore.internal.querySongs
@@ -16,13 +15,13 @@ import android.provider.MediaStore.MediaColumns.DATE_MODIFIED
 
 object SongLoader : Loader<Song> {
 
-    override fun all(context: Context): List<Song> =
+    override suspend fun all(context: Context): List<Song> =
         querySongs(context).intoSongs()
 
-    override fun id(context: Context, id: Long): Song =
+    override suspend fun id(context: Context, id: Long): Song? =
         querySongs(context, "${MediaStore.Audio.AudioColumns._ID} =? ", arrayOf(id.toString())).intoFirstSong()
 
-    fun path(context: Context, path: String): Song =
+    fun path(context: Context, path: String): Song? =
         querySongs(context, "${MediaStore.Audio.AudioColumns.DATA} =? ", arrayOf(path)).intoFirstSong()
 
     /**
@@ -42,11 +41,6 @@ object SongLoader : Loader<Song> {
         return cursor.intoSongs()
     }
 
-    fun searchByFileEntity(context: Context, file: FileEntity.File): Song {
-        return if (file.id > 0) id(context, file.id)
-        else searchByPath(context, file.location.sqlPattern, true).firstOrNull() ?: Song.EMPTY_SONG
-    }
-
     fun since(context: Context, timestamp: Long, useModifiedDate: Boolean = false): List<Song> {
         val dateRef = if (useModifiedDate) DATE_MODIFIED else DATE_ADDED
         val cursor =
@@ -59,7 +53,7 @@ object SongLoader : Loader<Song> {
         return cursor.intoSongs()
     }
 
-    fun latest(context: Context): Song? {
+    suspend fun latest(context: Context): Song? {
         return all(context).maxByOrNull { it.dateModified }
     }
 }

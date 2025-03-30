@@ -4,19 +4,22 @@
 
 package player.phonograph.ui.modules.tag
 
-import lib.phonograph.misc.CreateFileStorageAccessTool
-import lib.phonograph.misc.ICreateFileStorageAccess
-import lib.phonograph.misc.IOpenFileStorageAccess
-import lib.phonograph.misc.OpenFileStorageAccessTool
+import lib.activityresultcontract.registerActivityResultLauncherDelegate
+import lib.storage.launcher.CreateFileStorageAccessDelegate
+import lib.storage.launcher.ICreateFileStorageAccessible
+import lib.storage.launcher.IOpenFileStorageAccessible
+import lib.storage.launcher.OpenFileStorageAccessDelegate
+import mms.Source
 import player.phonograph.R
 import player.phonograph.model.Song
 import player.phonograph.repo.loader.Songs
-import player.phonograph.ui.compose.ComposeThemeActivity
+import player.phonograph.ui.basis.ComposeActivity
 import player.phonograph.ui.compose.PhonographTheme
+import player.phonograph.ui.compose.components.SystemBarsPadded
+import player.phonograph.ui.modules.tag.components.RequestWebSearchButton
 import player.phonograph.ui.modules.web.IWebSearchRequester
 import player.phonograph.ui.modules.web.WebSearchLauncher
 import player.phonograph.ui.modules.web.WebSearchTool
-import util.phonograph.tagsources.Source
 import androidx.activity.OnBackPressedDispatcher
 import androidx.activity.addCallback
 import androidx.activity.compose.setContent
@@ -24,14 +27,13 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.Icon
 import androidx.compose.material.IconButton
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.rememberScaffoldState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -44,37 +46,40 @@ import androidx.compose.ui.unit.dp
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import kotlinx.coroutines.runBlocking
 
 class MultiTagBrowserActivity :
-        ComposeThemeActivity(),
+        ComposeActivity(),
         IWebSearchRequester,
-        ICreateFileStorageAccess,
-        IOpenFileStorageAccess {
+        ICreateFileStorageAccessible,
+        IOpenFileStorageAccessible {
 
-    private val viewModel: MultiTagBrowserViewModel by viewModels()
+    private val viewModel: MultiTagBrowserActivityViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        createFileStorageAccessTool.register(lifecycle, activityResultRegistry)
-        openFileStorageAccessTool.register(lifecycle, activityResultRegistry)
-        webSearchTool.register(lifecycle, activityResultRegistry)
+        registerActivityResultLauncherDelegate(
+            openFileStorageAccessDelegate,
+            createFileStorageAccessDelegate,
+        )
+        webSearchTool.register(this)
         val songs = parseIntent(this, intent)
-        viewModel.updateSong(this, songs)
+        viewModel.load(this, songs, true)
         super.onCreate(savedInstanceState)
-
-        setContent {
-            BatchTagEditor(viewModel, onBackPressedDispatcher, webSearchTool)
-        }
         onBackPressedDispatcher.addCallback {
-            if (viewModel.pendingEditRequests.isNotEmpty()) {
+            if (viewModel.hasChanges) {
                 viewModel.exitWithoutSavingDialogState.show()
             } else {
                 finish()
             }
         }
+        setContent {
+            BatchTagEditor(viewModel, onBackPressedDispatcher, webSearchTool)
+        }
     }
 
-    override val openFileStorageAccessTool: OpenFileStorageAccessTool = OpenFileStorageAccessTool()
-    override val createFileStorageAccessTool: CreateFileStorageAccessTool = CreateFileStorageAccessTool()
+    override val createFileStorageAccessDelegate: CreateFileStorageAccessDelegate = CreateFileStorageAccessDelegate()
+    override val openFileStorageAccessDelegate: OpenFileStorageAccessDelegate = OpenFileStorageAccessDelegate()
+
     override val webSearchTool: WebSearchTool = WebSearchTool()
 
     companion object {
@@ -82,7 +87,7 @@ class MultiTagBrowserActivity :
         private const val PATHS = "PATHS"
         private fun parseIntent(context: Context, intent: Intent): List<Song> {
             val paths = intent.extras?.getStringArrayList(PATHS) ?: return emptyList()
-            return paths.mapNotNull { Songs.path(context, it) }
+            return paths.mapNotNull { runBlocking { Songs.path(context, it) } }
         }
 
         fun launch(context: Context, paths: ArrayList<String>) {
@@ -98,57 +103,66 @@ class MultiTagBrowserActivity :
 
 @Composable
 private fun BatchTagEditor(
-    viewModel: MultiTagBrowserViewModel,
+    viewModel: MultiTagBrowserActivityViewModel,
     onBackPressedDispatcher: OnBackPressedDispatcher,
     webSearchTool: WebSearchTool,
 ) {
     PhonographTheme {
-        val scaffoldState = rememberScaffoldState()
-        val editable by viewModel.editable.collectAsState()
-        Scaffold(
-            Modifier.statusBarsPadding(),
-            scaffoldState = scaffoldState,
-            topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            stringResource(if (editable) R.string.action_tag_editor else R.string.label_details)
-                        )
-                    },
-                    navigationIcon = {
-                        Box(Modifier.padding(16.dp)) {
-                            Icon(
-                                Icons.Default.ArrowBack, null,
-                                Modifier.clickable {
-                                    onBackPressedDispatcher.onBackPressed()
-                                }
+        SystemBarsPadded {
+            val scaffoldState = rememberScaffoldState()
+            val editable by viewModel.editable.collectAsState()
+            Scaffold(
+                scaffoldState = scaffoldState,
+                topBar = {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                stringResource(if (editable) R.string.action_tag_editor else R.string.label_details)
                             )
-                        }
-                    },
-                    actions = {
-                        RequestWebSearch(viewModel, webSearchTool)
-                        if (editable) {
-                            IconButton(onClick = { viewModel.saveConfirmationDialogState.show() }) {
-                                Icon(painterResource(id = R.drawable.ic_save_white_24dp), stringResource(R.string.save))
+                        },
+                        navigationIcon = {
+                            Box(Modifier.padding(16.dp)) {
+                                Icon(
+                                    Icons.AutoMirrored.Default.ArrowBack, null,
+                                    Modifier.clickable {
+                                        onBackPressedDispatcher.onBackPressed()
+                                    }
+                                )
                             }
-                        } else {
-                            IconButton(onClick = { viewModel.updateEditable(true) }) {
-                                Icon(painterResource(id = R.drawable.ic_edit_white_24dp), stringResource(R.string.edit))
+                        },
+                        actions = {
+                            RequestWebSearchButton(viewModel, webSearchTool)
+                            if (editable) {
+                                IconButton(onClick = { viewModel.saveConfirmationDialogState.show() }) {
+                                    Icon(
+                                        painterResource(id = R.drawable.ic_save_white_24dp),
+                                        stringResource(R.string.save)
+                                    )
+                                }
+                            } else {
+                                IconButton(onClick = { viewModel.enterEditMode() }) {
+                                    Icon(
+                                        painterResource(id = R.drawable.ic_edit_white_24dp),
+                                        stringResource(R.string.edit)
+                                    )
+                                }
                             }
                         }
-                    }
-                )
-            }
-        ) {
-            Box(Modifier.padding(it)) {
-                MultiTagBrowserScreen(viewModel)
+                    )
+                }
+            ) {
+                Box(Modifier.padding(it)) {
+                    MultiTagBrowserScreen(viewModel)
+                }
             }
         }
+
     }
 }
 
 @Composable
-private fun RequestWebSearch(viewModel: MultiTagBrowserViewModel, webSearchTool: WebSearchTool) {
+@Suppress("UNUSED_PARAMETER")
+private fun RequestWebSearchButton(viewModel: MultiTagBrowserActivityViewModel, webSearchTool: WebSearchTool) {
     val context = LocalContext.current
     fun search(source: Source) {
         val intent = when (source) {
@@ -159,6 +173,6 @@ private fun RequestWebSearch(viewModel: MultiTagBrowserViewModel, webSearchTool:
             // Log.v("TagEditor", it.toString()) //todo
         }
     }
-    RequestWebSearch(webSearchTool, ::search, null)
+    RequestWebSearchButton(::search, null)
 }
 

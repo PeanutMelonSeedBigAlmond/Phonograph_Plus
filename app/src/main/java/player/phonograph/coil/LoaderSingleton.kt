@@ -6,17 +6,20 @@ package player.phonograph.coil
 
 import coil.ImageLoader
 import player.phonograph.coil.album.AlbumImageFetcher
+import player.phonograph.coil.album.AlbumImageKeyer
 import player.phonograph.coil.album.AlbumImageMapper
-import player.phonograph.coil.album.AlbumKeyer
 import player.phonograph.coil.artist.ArtistImageFetcher
+import player.phonograph.coil.artist.ArtistImageKeyer
 import player.phonograph.coil.artist.ArtistImageMapper
-import player.phonograph.coil.artist.ArtistKeyer
 import player.phonograph.coil.audiofile.AudioFileFetcher
 import player.phonograph.coil.audiofile.AudioFileKeyer
 import player.phonograph.coil.audiofile.AudioFileMapper
 import player.phonograph.coil.audiofile.FileEntityMapper
+import player.phonograph.coil.cache.CacheInterceptor
 import player.phonograph.coil.lastfm.LastFmImageBundleKeyer
 import player.phonograph.coil.lastfm.LastFmImageBundleMapper
+import player.phonograph.coil.palette.PaletteInterceptor
+import player.phonograph.coil.retriever.RetrieverConfigInterceptor
 import android.content.Context
 
 fun createPhonographImageLoader(context: Context): ImageLoader {
@@ -27,19 +30,22 @@ fun createPhonographImageLoader(context: Context): ImageLoader {
             add(AudioFileKeyer())
             add(AudioFileMapper())
             add(FileEntityMapper())
-            add(AudioFileFetcher.Factory(context))
+            add(AudioFileFetcher.Factory())
             // album
-            add(AlbumKeyer())
+            add(AlbumImageKeyer())
             add(AlbumImageMapper())
-            add(AlbumImageFetcher.Factory(context))
+            add(AlbumImageFetcher.Factory())
             // artist
-            add(ArtistKeyer())
+            add(ArtistImageKeyer())
             add(ArtistImageMapper())
-            add(ArtistImageFetcher.Factory(context))
+            add(ArtistImageFetcher.Factory())
             // last.fm
             add(LastFmImageBundleKeyer())
             add(LastFmImageBundleMapper())
+            // interceptors
+            add(CacheInterceptor())
+            add(PaletteInterceptor())
+            add(RetrieverConfigInterceptor())
         }
-        .crossfade(true)
         .build()
 }

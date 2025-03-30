@@ -5,11 +5,8 @@
 package player.phonograph.ui.dialogs
 
 import com.afollestad.materialdialogs.MaterialDialog
-import com.afollestad.materialdialogs.WhichButton
-import com.afollestad.materialdialogs.actions.getActionButton
 import com.afollestad.materialdialogs.customview.customView
-import lib.phonograph.misc.ICreateFileStorageAccess
-import mt.pref.ThemeColor
+import lib.storage.launcher.ICreateFileStorageAccessible
 import player.phonograph.R
 import player.phonograph.mechanism.backup.ALL_BACKUP_CONFIG
 import player.phonograph.mechanism.backup.Backup
@@ -17,6 +14,7 @@ import player.phonograph.mechanism.backup.ENABLE_BACKUP_CONFIG
 import player.phonograph.util.reportError
 import player.phonograph.util.text.currentDate
 import player.phonograph.util.text.dateTimeSuffixCompat
+import player.phonograph.util.theme.tintButtons
 import androidx.appcompat.app.AlertDialog
 import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
@@ -49,13 +47,14 @@ class BackupExportDialog : DialogFragment() {
 
         // dialog
         val dialog = MaterialDialog(requireActivity())
-            .title(text = getString(R.string.action_import, getString(R.string.action_backup)))
+            .title(text = getString(R.string.action_export, getString(R.string.action_backup)))
             .customView(view = view, dialogWrapContent = false)
             .positiveButton(android.R.string.ok) { dialog ->
                 val selected = adapter.currentConfig
                 val host = activity.get() ?: return@positiveButton
-                require(host is ICreateFileStorageAccess)
-                host.createFileStorageAccessTool.launch(
+                if (selected.isEmpty()) return@positiveButton
+                require(host is ICreateFileStorageAccessible)
+                host.createFileStorageAccessDelegate.launch(
                     "phonograph_plus_backup_${dateTimeSuffixCompat(currentDate())}.zip"
                 ) { uri ->
                     uri ?: return@launch
@@ -78,11 +77,7 @@ class BackupExportDialog : DialogFragment() {
                 }
             }
             .negativeButton(android.R.string.cancel) { it.dismiss() }
-            .apply {
-                val color = ThemeColor.accentColor(requireActivity())
-                getActionButton(WhichButton.POSITIVE).updateTextColor(color)
-                getActionButton(WhichButton.NEGATIVE).updateTextColor(color)
-            }
+            .tintButtons()
 
         return dialog
     }
@@ -92,7 +87,7 @@ class BackupExportDialog : DialogFragment() {
             .setTitle(R.string.action_backup)
             .setMessage(context.getString(if (success) R.string.completed else R.string.failed))
             .setPositiveButton(android.R.string.ok) { _, _ -> }
-            .create()
+            .create().tintButtons()
 
 
     companion object {

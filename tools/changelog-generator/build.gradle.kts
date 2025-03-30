@@ -1,5 +1,5 @@
-import org.jetbrains.kotlin.gradle.dsl.KotlinCompile
-import org.jetbrains.kotlin.gradle.dsl.KotlinJvmOptions
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
 
 repositories {
     mavenCentral()
@@ -7,8 +7,8 @@ repositories {
 }
 
 plugins {
-    alias(plugins.plugins.kotlin.jvm)
-    alias(plugins.plugins.kotlin.serialization)
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 sourceSets {
@@ -21,6 +21,7 @@ val originalReleaseNotePath = "ReleaseNote.yaml"
 
 val outputGitHubReleaseNotePath = "GitHubReleaseNote.md"
 val outputEncodedUrlPath = "GitHubReleaseNote.url.txt"
+val outputEscapedReleaseNotePath = "EscapedReleaseNote.md"
 
 val changelogsPath = "app/src/main/assets"
 
@@ -40,6 +41,16 @@ tasks.register("GenerateGithubReleaseNote", JavaExec::class.java) {
         rootProject.projectDir.absolutePath,
         originalReleaseNotePath,
         outputGitHubReleaseNotePath
+    )
+}
+
+tasks.register("GenerateEscapedMarkdownReleaseNote", JavaExec::class.java) {
+    prepareTask(this)
+    args = listOf(
+        "GenerateEscapedMarkdownReleaseNote",
+        rootProject.projectDir.absolutePath,
+        originalReleaseNotePath,
+        outputEscapedReleaseNotePath
     )
 }
 
@@ -96,8 +107,11 @@ java {
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-tasks.withType(KotlinCompile::class.java) {
-    (kotlinOptions as KotlinJvmOptions).jvmTarget = "17"
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_17)
+        apiVersion.set(KotlinVersion.KOTLIN_2_0)
+    }
 }
 
 dependencies {

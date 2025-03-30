@@ -4,7 +4,11 @@
 
 package player.phonograph.service.queue
 
+import player.phonograph.model.PlayRequest
 import player.phonograph.model.Song
+import player.phonograph.model.SongClickMode
+import player.phonograph.model.service.ShuffleMode
+import player.phonograph.service.MusicPlayerRemote
 import player.phonograph.util.warning
 
 
@@ -31,7 +35,7 @@ fun swapQueue(queueHolder: QueueHolder, newQueue: List<Song>, newPosition: Int) 
 
 fun addSong(queueHolder: QueueHolder, song: Song, position: Int = -1) {
     queueHolder.modifyQueue { _playingQueue, _originalPlayingQueue ->
-        if (position < 0) {
+        if (position < 0 || position >= _playingQueue.size || position >= _originalPlayingQueue.size) {
             _playingQueue.add(song)
             _originalPlayingQueue.add(song)
         } else {
@@ -43,7 +47,7 @@ fun addSong(queueHolder: QueueHolder, song: Song, position: Int = -1) {
 
 fun addSongs(queueHolder: QueueHolder, songs: List<Song>, position: Int = -1) {
     queueHolder.modifyQueue { _playingQueue, _originalPlayingQueue ->
-        if (position < 0) {
+        if (position < 0 || position >= _playingQueue.size || position >= _originalPlayingQueue.size) {
             _playingQueue.addAll(songs)
             _originalPlayingQueue.addAll(songs)
         } else {
@@ -152,13 +156,17 @@ fun shuffle(queueHolder: QueueHolder, newShuffleMode: ShuffleMode) {
                 queueHolder.modifyPosition(0)
             }
             ShuffleMode.NONE    -> {
-                val currentSongId = queueHolder.getSongAt(queueHolder.currentSongPosition).id
                 _playingQueue.clear()
                 _playingQueue.addAll(_originalPlayingQueue)
-                for (song in _playingQueue) {
-                    if (song.id == currentSongId) {
-                        queueHolder.modifyPosition(_playingQueue.indexOf(song))
-                        break
+                val currentSong = queueHolder.getSongAt(queueHolder.currentSongPosition)
+                if (currentSong == null){
+                    queueHolder.modifyPosition(_playingQueue.size)
+                } else {
+                    for (song in _playingQueue) {
+                        if (song.id == currentSong.id) {
+                            queueHolder.modifyPosition(_playingQueue.indexOf(song))
+                            break
+                        }
                     }
                 }
             }
@@ -174,6 +182,53 @@ private fun shuffle(songs: MutableList<Song>, current: Int) {
         songs.add(0, song)
     } else {
         songs.shuffle()
+    }
+}
+
+
+fun executePlayRequest(queueManager: QueueManager, request: PlayRequest, mode: Int) {
+    when(request) {
+        is PlayRequest.SongRequest   -> executePlayRequest(queueManager, request, mode)
+        is PlayRequest.SongsRequest  -> executePlayRequest(queueManager, request, mode)
+        else                         -> {}
+    }
+    if (mode in SongClickMode.modesRequiringInstantlyChangingState) {
+        MusicPlayerRemote.requireResumeInstantlyIfReady()
+    }
+}
+
+private fun executePlayRequest(queueManager: QueueManager, request: PlayRequest.SongsRequest, mode: Int) {
+    val currentPosition = queueManager.currentSongPosition
+    val songs = request.songs
+    val position = request.position
+    when (mode) {
+        SongClickMode.SONG_PLAY_NEXT            -> queueManager.addSong(songs[position], currentPosition + 1)
+        SongClickMode.SONG_PLAY_NOW             -> queueManager.addSong(songs[position], currentPosition)
+        SongClickMode.SONG_APPEND_QUEUE         -> queueManager.addSong(songs[position])
+        SongClickMode.SONG_SINGLE_PLAY          -> queueManager.swapQueue(listOf(songs[position]), 0, false)
+        SongClickMode.QUEUE_PLAY_NOW            -> queueManager.addSongs(songs, currentPosition)
+        SongClickMode.QUEUE_PLAY_NEXT           -> queueManager.addSongs(songs, currentPosition + 1)
+        SongClickMode.QUEUE_APPEND_QUEUE        -> queueManager.addSongs(songs)
+        SongClickMode.QUEUE_SWITCH_TO_BEGINNING -> queueManager.swapQueue(songs, 0, false)
+        SongClickMode.QUEUE_SWITCH_TO_POSITION  -> queueManager.swapQueue(songs, position, false)
+        SongClickMode.QUEUE_SHUFFLE             -> {
+            queueManager.swapQueue(songs, 0, false)
+            queueManager.modifyShuffleMode(ShuffleMode.SHUFFLE, false)
+        }
+
+        else  /* invalided */     -> {}
+    }
+}
+
+private fun executePlayRequest(queueManager: QueueManager, request: PlayRequest.SongRequest, mode: Int) {
+    val currentPosition = queueManager.currentSongPosition
+    val song = request.song
+    when (mode) {
+        SongClickMode.SONG_PLAY_NEXT            -> queueManager.addSong(song, currentPosition + 1)
+        SongClickMode.SONG_PLAY_NOW             -> queueManager.addSong(song, currentPosition)
+        SongClickMode.SONG_APPEND_QUEUE         -> queueManager.addSong(song)
+        SongClickMode.SONG_SINGLE_PLAY          -> queueManager.swapQueue(listOf(song), 0, false)
+        else  /* invalided */     -> {}
     }
 }
 

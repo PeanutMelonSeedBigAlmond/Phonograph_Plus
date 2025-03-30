@@ -13,6 +13,9 @@ import player.phonograph.repo.mediastore.internal.BASE_SONG_PROJECTION
 import player.phonograph.repo.mediastore.internal.intoSongs
 import player.phonograph.settings.Keys
 import player.phonograph.settings.Setting
+import player.phonograph.util.MEDIASTORE_VOLUME_EXTERNAL
+import player.phonograph.util.mediastoreUriGenreMembers
+import player.phonograph.util.mediastoreUriGenres
 import android.content.Context
 import android.database.Cursor
 import android.os.Build
@@ -21,10 +24,10 @@ import android.provider.MediaStore.Audio.Genres
 
 object GenreLoader : Loader<Genre> {
 
-    override fun all(context: Context): List<Genre> =
+    override suspend fun all(context: Context): List<Genre> =
         queryGenre(context)?.intoGenres(context)?.sortAll(context) ?: emptyList()
 
-    override fun id(context: Context, id: Long): Genre? =
+    override suspend fun id(context: Context, id: Long): Genre? =
         queryGenre(context, id)?.intoGenres(context)?.first()
 
     fun genreSongs(context: Context, genreId: Long): List<Song> {
@@ -53,7 +56,7 @@ object GenreLoader : Loader<Genre> {
 
     private fun querySongs(context: Context, genreId: Long): Cursor? =
         context.contentResolver.query(
-            Genres.Members.getContentUri("external", genreId),
+            mediastoreUriGenreMembers(MEDIASTORE_VOLUME_EXTERNAL, genreId),
             BASE_SONG_PROJECTION,
             BASE_AUDIO_SELECTION,
             null,
@@ -67,16 +70,22 @@ object GenreLoader : Loader<Genre> {
 
     private fun queryGenre(context: Context, selection: String?, selectionArgs: Array<String>?): Cursor? =
         context.contentResolver.query(
-            Genres.EXTERNAL_CONTENT_URI, arrayOf(
-                Genres._ID, Genres.NAME
-            ), selection, selectionArgs, null
+            mediastoreUriGenres(MEDIASTORE_VOLUME_EXTERNAL),
+            arrayOf(Genres._ID, Genres.NAME),
+            selection,
+            selectionArgs,
+            null
         )
 
     private fun removeEmptyGenre(context: Context, genre: Genre) {
         // try to remove the empty genre from the media store
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
             try {
-                context.contentResolver.delete(Genres.EXTERNAL_CONTENT_URI, "${Genres._ID} == ${genre.id}", null)
+                context.contentResolver.delete(
+                    mediastoreUriGenres(MEDIASTORE_VOLUME_EXTERNAL),
+                    "${Genres._ID} == ${genre.id}",
+                    null
+                )
             } catch (e: Exception) {
                 e.printStackTrace()
             }

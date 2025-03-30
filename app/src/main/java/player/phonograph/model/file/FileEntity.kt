@@ -4,11 +4,6 @@
 
 package player.phonograph.model.file
 
-import player.phonograph.App
-import player.phonograph.model.sort.SortRef
-import player.phonograph.settings.Keys
-import player.phonograph.settings.Setting
-
 /**
  * Presenting a file
  */
@@ -17,27 +12,7 @@ sealed class FileEntity(
     name: String? = null,
     val dateAdded: Long = -1,
     val dateModified: Long = -1,
-) : Comparable<FileEntity> {
-
-    override fun compareTo(other: FileEntity): Int {
-        return if ((this is Folder) xor (other is Folder)) {
-            if (this is Folder) -1 else 1
-        } else {
-            val preference = Setting(App.instance).Composites[Keys.fileSortMode]
-            when (preference.data.sortRef) {
-                SortRef.MODIFIED_DATE -> dateModified.compareTo(other.dateModified)
-                SortRef.ADDED_DATE    -> dateAdded.compareTo(other.dateAdded)
-                SortRef.SIZE          -> {
-                    if (this is File && other is File) size.compareTo(other.size)
-                    else name.compareTo(other.name)
-                }
-
-                else                  -> name.compareTo(other.name)
-            }.let {
-                if (preference.data.revert) -it else it
-            }
-        }
-    }
+) {
 
     val name: String = name ?: location.basePath.takeLastWhile { it != '/' }
 
@@ -55,10 +30,9 @@ sealed class FileEntity(
         name: String?,
         dateAdded: Long = -1,
         dateModified: Long = -1,
-    ) : FileEntity(location, name, dateAdded, dateModified) {
         @JvmSynthetic
-        var songCount: Int = 0
-    }
+        var songCount: Int = -1,
+    ) : FileEntity(location, name, dateAdded, dateModified)
 
     // only location matters
 
@@ -71,4 +45,6 @@ sealed class FileEntity(
 
         return true
     }
+
+    override fun toString(): String = location.toString()
 }

@@ -5,14 +5,18 @@
 package player.phonograph.service.queue
 
 import org.koin.core.context.GlobalContext
+import player.phonograph.model.PlayRequest.SongsRequest
 import player.phonograph.model.Song
-import player.phonograph.repo.database.MusicPlaybackQueueStore
+import player.phonograph.model.service.RepeatMode
+import player.phonograph.model.service.ShuffleMode
 import player.phonograph.service.util.QueuePreferenceManager
 import player.phonograph.util.text.currentTimestamp
+import player.phonograph.util.text.totalDuration
 import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.runBlocking
 import java.util.concurrent.CopyOnWriteArrayList
 
 class QueueHolder private constructor(
@@ -68,12 +72,8 @@ class QueueHolder private constructor(
     }
 
 
-    fun getSongAt(position: Int): Song =
-        if (position >= 0 && position < playingQueue.size) {
-            playingQueue[position]
-        } else {
-            Song.EMPTY_SONG
-        }
+    fun getSongAt(position: Int): Song? =
+        if (position >= 0 && position < playingQueue.size) playingQueue[position] else null
 
     /**
      * synchronized
@@ -101,8 +101,7 @@ class QueueHolder private constructor(
     }
 
     fun getRestSongsDuration(position: Int): Long =
-        playingQueue.takeLast(getRestSongsCount(position))
-            .fold(0L) { acc, song -> acc + song.duration }
+        totalDuration(playingQueue.takeLast(getRestSongsCount(position)))
 
     private fun getRestSongsCount(currentPosition: Int): Int =
         if (playingQueue.isEmpty() || playingQueue.size - currentPosition < 0) 0
@@ -114,6 +113,7 @@ class QueueHolder private constructor(
         saveCfg(context)
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun saveQueue(context: Context) = synchronized(persistenceLock) {
         GlobalContext.get().get<MusicPlaybackQueueStore>().saveQueues(playingQueue, originalPlayingQueue)
     }
@@ -131,20 +131,40 @@ class QueueHolder private constructor(
             (playingQueue as CopyOnWriteArrayList<Song>).clone() as List<Song>
         val previousOriginalPlayingQueue =
             (originalPlayingQueue as CopyOnWriteArrayList<Song>).clone() as List<Song>
-        val validatedQueue = validSongs(context, previousPlayingQueue)
-        val validatedOriginalQueue = validSongs(context, previousOriginalPlayingQueue)
-        val changed = validatedQueue != previousPlayingQueue || validatedOriginalQueue != previousOriginalPlayingQueue
-        synchronized(queueLock) {
-            if (
-                previousPlayingQueue == playingQueue && previousOriginalPlayingQueue == originalPlayingQueue // avoid data race
-            ) {
-                if (changed) {
-                    playingQueue = CopyOnWriteArrayList(validatedQueue)
-                    originalPlayingQueue = CopyOnWriteArrayList(validatedOriginalQueue)
-                }
-            } // cancel if user changes queue before validation
+        return runBlocking {
+            val validatedQueue = QueueValidator.markInvalidSongs(context, previousPlayingQueue)
+            val validatedOriginalQueue = QueueValidator.markInvalidSongs(context, previousOriginalPlayingQueue)
+            val changed =
+                validatedQueue != previousPlayingQueue || validatedOriginalQueue != previousOriginalPlayingQueue
+            synchronized(queueLock) {
+                if (
+                    previousPlayingQueue == playingQueue && previousOriginalPlayingQueue == originalPlayingQueue // avoid data race
+                ) {
+                    if (changed) {
+                        playingQueue = CopyOnWriteArrayList(validatedQueue)
+                        originalPlayingQueue = CopyOnWriteArrayList(validatedOriginalQueue)
+                    }
+                } // cancel if user changes queue before validation
+            }
+            changed
         }
-        return changed
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun clean(context: Context): Boolean {
+        val previousPlayingQueue = (playingQueue as CopyOnWriteArrayList<Song>).clone() as List<Song>
+        val previousOriginalPlayingQueue = (originalPlayingQueue as CopyOnWriteArrayList<Song>).clone() as List<Song>
+        val position = currentSongPosition
+        return runBlocking {
+            val queue = QueueValidator.removeMissingSongs(context, SongsRequest(previousPlayingQueue, position))
+            val origin = QueueValidator.removeMissingSongs(context, SongsRequest(previousOriginalPlayingQueue, 0))
+            synchronized(queueLock) {
+                playingQueue = CopyOnWriteArrayList(queue.songs)
+                originalPlayingQueue = CopyOnWriteArrayList(origin.songs)
+                modifyPosition(queue.position)
+            }
+            previousPlayingQueue.size != queue.songs.size
+        }
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -4,13 +4,13 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    tools:context=".ui.activities.AboutActivity">
+    tools:context=".ui.modules.auxiliary.AboutActivity">
 
     <include layout="@layout/status_bar" />
 
     <androidx.appcompat.widget.Toolbar
         android:id="@+id/toolbar"
-        style="@style/Toolbar"
+        style="@style/Widget.Phonograph.Toolbar"
         android:background="@android:color/transparent" />
 
     <ScrollView

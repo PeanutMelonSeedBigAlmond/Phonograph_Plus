@@ -4,10 +4,10 @@
 
 package player.phonograph.ui.modules.web
 
+import mms.musicbrainz.MusicBrainzAction
+import mms.musicbrainz.MusicBrainzSearchResult
 import player.phonograph.R
 import player.phonograph.ui.compose.components.ListItem
-import util.phonograph.tagsources.musicbrainz.MusicBrainzAction
-import util.phonograph.tagsources.musicbrainz.MusicBrainzSearchResult
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -19,10 +19,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import util.phonograph.tagsources.musicbrainz.MusicBrainzSearchResultArtists as SearchResultArtists
-import util.phonograph.tagsources.musicbrainz.MusicBrainzSearchResultRecording as SearchResultRecording
-import util.phonograph.tagsources.musicbrainz.MusicBrainzSearchResultReleases as SearchResultReleases
-import util.phonograph.tagsources.musicbrainz.MusicBrainzSearchResultReleasesGroup as SearchResultReleasesGroup
+import mms.musicbrainz.MusicBrainzSearchResultArtists as SearchResultArtists
+import mms.musicbrainz.MusicBrainzSearchResultRecording as SearchResultRecording
+import mms.musicbrainz.MusicBrainzSearchResultReleases as SearchResultReleases
+import mms.musicbrainz.MusicBrainzSearchResultReleasesGroup as SearchResultReleasesGroup
 
 @Composable
 fun MusicBrainzSearchResult(
@@ -79,9 +79,14 @@ private fun MusicBrainzSearchResultReleasesGroup(
                 ?: releaseGroup.releases?.firstOrNull()?.title
                 ?: NA
 
-        ListItem(Modifier, releaseGroup.title, subtitle, {
-            getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.ReleaseGroup, releaseGroup.id))
-        }, {}, null)
+        ListItem(
+            title = releaseGroup.title,
+            subtitle = subtitle,
+            onClick = {
+                getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.ReleaseGroup, releaseGroup.id))
+            },
+            onMenuClick = {},
+        )
     }
 }
 @Composable
@@ -98,9 +103,14 @@ private fun MusicBrainzSearchResultReleases(
                 ?: release.date
                 ?: release.media.firstOrNull()?.format
                 ?: NA
-        ListItem(Modifier, release.title, subtitle, {
-            getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Release, release.id))
-        }, {}, null)
+        ListItem(
+            title = release.title,
+            subtitle = subtitle,
+            onClick = {
+                getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Release, release.id))
+            },
+            onMenuClick = {},
+        )
     }
 }
 @Composable
@@ -113,9 +123,14 @@ private fun MusicBrainzSearchResultArtists(
         val subtitle = artist.country
             ?: artist.area?.name
             ?: ""
-        ListItem(Modifier, artist.name, subtitle, {
-            getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Artist, artist.id))
-        }, {}, null)
+        ListItem(
+            title = artist.name,
+            subtitle = subtitle,
+            onClick = {
+                getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Artist, artist.id))
+            },
+            onMenuClick = {},
+        )
     }
 }
 @Composable
@@ -131,9 +146,14 @@ private fun MusicBrainzSearchResultRecording(
                 ?: recording.firstReleaseDate
                 ?: recording.releases?.firstOrNull()?.title
                 ?: NA
-        ListItem(Modifier, recording.title, subtitle, {
-            getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Recording, recording.id))
-        }, {}, null)
+        ListItem(
+            title = recording.title,
+            subtitle = subtitle,
+            onClick = {
+                getDetail(MusicBrainzAction.View(MusicBrainzAction.Target.Recording, recording.id))
+            },
+            onMenuClick = {},
+        )
     }
 }
 
